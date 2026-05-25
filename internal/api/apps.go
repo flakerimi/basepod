@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/flakerimi/basepod/internal/apps"
+	"github.com/flakerimi/basepod/internal/deploy"
 )
 
 func listAppsHandler(d Deps) http.HandlerFunc {
@@ -84,8 +86,62 @@ func getAppHandler(d Deps) http.HandlerFunc {
 }
 
 func updateAppHandler(d Deps) http.HandlerFunc {
-	// minimal v1: not implemented
-	return notImplemented("updateApp")
+	type req struct {
+		Instances       *int    `json:"instances,omitempty"`
+		DeployStrategy  *string `json:"deploy_strategy,omitempty"`
+		HealthcheckPath *string `json:"healthcheck_path,omitempty"`
+		HealthcheckCmd  *string `json:"healthcheck_cmd,omitempty"`
+		InternalOnly    *bool   `json:"internal_only,omitempty"`
+		MemoryMB        *int    `json:"memory_mb,omitempty"`
+		CPUPct          *int    `json:"cpu_pct,omitempty"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		a, err := d.Apps.GetByName(r.Context(), name)
+		if err != nil {
+			writeErr(w, 404, "not_found", "app not found")
+			return
+		}
+		var b req
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			writeErr(w, 400, "bad_request", "invalid JSON")
+			return
+		}
+		patch := apps.UpdateInput{
+			Instances:       coalesceInt(b.Instances, a.Instances),
+			DeployStrategy:  coalesceStr(b.DeployStrategy, a.DeployStrategy),
+			HealthcheckPath: coalesceStr(b.HealthcheckPath, a.HealthcheckPath),
+			HealthcheckCmd:  coalesceStr(b.HealthcheckCmd, a.HealthcheckCmd),
+			InternalOnly:    coalesceBool(b.InternalOnly, a.InternalOnly),
+			MemoryMB:        coalesceInt(b.MemoryMB, a.MemoryMB),
+			CPUPct:          coalesceInt(b.CPUPct, a.CPUPct),
+		}
+		updated, err := d.Apps.Update(r.Context(), a.ID, patch)
+		if err != nil {
+			writeErr(w, 500, "server_error", err.Error())
+			return
+		}
+		writeJSON(w, 200, map[string]any{"app": updated})
+	}
+}
+
+func coalesceInt(p *int, def int) int {
+	if p == nil {
+		return def
+	}
+	return *p
+}
+func coalesceStr(p *string, def string) string {
+	if p == nil {
+		return def
+	}
+	return *p
+}
+func coalesceBool(p *bool, def bool) bool {
+	if p == nil {
+		return def
+	}
+	return *p
 }
 
 func deleteAppHandler(d Deps) http.HandlerFunc {
@@ -226,5 +282,63 @@ func restartAppHandler(d Deps) http.HandlerFunc {
 }
 
 func rollbackHandler(d Deps) http.HandlerFunc {
-	return notImplemented("rollback")
+	type req struct {
+		Version string `json:"version"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		a, err := d.Apps.GetByName(r.Context(), name)
+		if err != nil {
+			writeErr(w, 404, "not_found", "app not found")
+			return
+		}
+		if d.Orchestrator == nil {
+			writeErr(w, 503, "podman_unavailable", "deploy pipeline not connected")
+			return
+		}
+		var b req
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil || b.Version == "" {
+			writeErr(w, 400, "bad_request", "version required")
+			return
+		}
+		versions, err := d.Apps.ListVersions(r.Context(), a.ID)
+		if err != nil {
+			writeErr(w, 500, "server_error", err.Error())
+			return
+		}
+		var target *struct {
+			Version  string
+			ImageTag string
+		}
+		for _, v := range versions {
+			if v.Version == b.Version {
+				target = &struct {
+					Version  string
+					ImageTag string
+				}{v.Version, v.ImageTag}
+				break
+			}
+		}
+		if target == nil {
+			writeErr(w, 404, "version_not_found", "no such version for this app")
+			return
+		}
+		topic := "app:" + a.Name + ":deploy"
+		d.Events.Publish(topic, "rollback_started", map[string]any{"version": target.Version})
+		go func() {
+			ctx := context.Background()
+			err := d.Orchestrator.Deploy(ctx, deploy.Request{
+				App:      a,
+				ImageTag: target.ImageTag,
+				Version:  target.Version,
+				Strategy: a.DeployStrategy,
+			})
+			if err != nil {
+				d.Events.Publish(topic, "failed", map[string]any{"error": err.Error()})
+				return
+			}
+			d.Events.Publish(topic, "deployed", map[string]any{"version": target.Version})
+		}()
+		writeJSON(w, http.StatusAccepted, map[string]any{"version": target.Version})
+	}
 }

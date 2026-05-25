@@ -2,14 +2,9 @@ package api
 
 import "net/http"
 
-// Stubs return 501 until their phase lands. They keep the router wired without
-// blocking other work.
-
+// notImplemented is used by handlers that still need wiring.
 func notImplemented(name string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotImplemented, "not_implemented", name+" not implemented yet")
 	}
 }
-
-func backupHandler(d Deps) http.HandlerFunc  { return notImplemented("backup") }
-func restoreHandler(d Deps) http.HandlerFunc { return notImplemented("restore") }

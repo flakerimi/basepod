@@ -159,6 +159,43 @@ func (s *Service) List(ctx context.Context) ([]*App, error) {
 	return out, nil
 }
 
+type UpdateInput struct {
+	Instances       int
+	DeployStrategy  string
+	HealthcheckPath string
+	HealthcheckCmd  string
+	InternalOnly    bool
+	MemoryMB        int
+	CPUPct          int
+}
+
+func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (*App, error) {
+	row, err := s.q.GetAppByID(ctx, id)
+	if err != nil {
+		return nil, ErrAppNotFound
+	}
+	if err := s.q.UpdateApp(ctx, db.UpdateAppParams{
+		ImageRepo:       row.ImageRepo,
+		CurrentVersion:  row.CurrentVersion,
+		Instances:       int64(in.Instances),
+		DeployStrategy:  in.DeployStrategy,
+		HealthcheckPath: in.HealthcheckPath,
+		HealthcheckCmd:  in.HealthcheckCmd,
+		InternalOnly:    boolToInt(in.InternalOnly),
+		MemoryMb:        int64(in.MemoryMB),
+		CpuPct:          int64(in.CPUPct),
+		UpdatedAt:       time.Now().Unix(),
+		ID:              id,
+	}); err != nil {
+		return nil, err
+	}
+	updated, err := s.q.GetAppByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.expand(ctx, updated)
+}
+
 func (s *Service) Delete(ctx context.Context, name string) error {
 	a, err := s.GetByName(ctx, name)
 	if err != nil {
