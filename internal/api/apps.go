@@ -10,6 +10,7 @@ import (
 
 	"github.com/flakerimi/basepod/internal/apps"
 	"github.com/flakerimi/basepod/internal/deploy"
+	"github.com/flakerimi/basepod/internal/store/db"
 )
 
 func listAppsHandler(d Deps) http.HandlerFunc {
@@ -204,6 +205,12 @@ func putEnvHandler(d Deps) http.HandlerFunc {
 			writeErr(w, 400, "bad_request", "invalid JSON")
 			return
 		}
+		for k := range b.Env {
+			if !validEnvKey(k) {
+				writeErr(w, 400, "bad_env_key", "invalid env key: "+k)
+				return
+			}
+		}
 		name := chi.URLParam(r, "name")
 		a, err := d.Apps.GetByName(r.Context(), name)
 		if err != nil {
@@ -214,8 +221,54 @@ func putEnvHandler(d Deps) http.HandlerFunc {
 			writeErr(w, 500, "server_error", err.Error())
 			return
 		}
+		audit(r.Context(), d, "app.env.replace", a.Name, map[string]any{"count": len(b.Env)})
+		restarted := false
+		if r.URL.Query().Get("restart") == "1" && d.Podman != nil {
+			if err := d.Podman.ContainerStop(r.Context(), name, 5); err == nil {
+				_ = d.Podman.ContainerStart(r.Context(), name)
+				restarted = true
+			}
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "restarted": restarted})
+	}
+}
+
+func deleteEnvKeyHandler(d Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		key := chi.URLParam(r, "key")
+		a, err := d.Apps.GetByName(r.Context(), name)
+		if err != nil {
+			writeErr(w, 404, "not_found", "app not found")
+			return
+		}
+		if err := d.Queries.DeleteAppEnv(r.Context(), db.DeleteAppEnvParams{AppID: a.ID, Key: key}); err != nil {
+			writeErr(w, 500, "server_error", err.Error())
+			return
+		}
+		audit(r.Context(), d, "app.env.delete", a.Name, map[string]any{"key": key})
 		writeJSON(w, 200, map[string]any{"ok": true})
 	}
+}
+
+func validEnvKey(k string) bool {
+	if k == "" || len(k) > 256 {
+		return false
+	}
+	for i, c := range k {
+		isAlpha := (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'
+		isDigit := c >= '0' && c <= '9'
+		if i == 0 {
+			if !isAlpha {
+				return false
+			}
+			continue
+		}
+		if !isAlpha && !isDigit {
+			return false
+		}
+	}
+	return true
 }
 
 func addDomainHandler(d Deps) http.HandlerFunc {

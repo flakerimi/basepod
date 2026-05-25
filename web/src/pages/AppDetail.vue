@@ -13,6 +13,12 @@ const env = ref<Record<string, string>>({})
 const newDomain = ref('')
 const newKey = ref('')
 const newVal = ref('')
+const envMode = ref<'rows' | 'bulk'>('rows')
+const envBulk = ref('')
+const envRevealed = ref<Record<string, boolean>>({})
+const envRestartOnSave = ref(true)
+const envSaving = ref(false)
+const envSavedMsg = ref('')
 
 // Git tab state
 interface GitConfig {
@@ -66,8 +72,81 @@ function stopLogStream() {
   stopLogs = undefined
 }
 
+function isSecretKey(k: string) {
+  return /KEY|TOKEN|PASS|SECRET|DSN|AUTH|PRIVATE/i.test(k)
+}
+
+function bulkText(): string {
+  return Object.entries(env.value)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join('\n')
+}
+
+function syncBulkFromRows() {
+  envBulk.value = bulkText()
+}
+
+function parseBulk(text: string): { env: Record<string, string>; error?: string } {
+  const out: Record<string, string> = {}
+  const lines = text.split(/\r?\n/)
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    const eq = line.indexOf('=')
+    if (eq <= 0) return { env: {}, error: `bad line: ${line}` }
+    const key = line.slice(0, eq).trim()
+    const val = line.slice(eq + 1).replace(/^["']|["']$/g, '')
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return { env: {}, error: `invalid key: ${key}` }
+    out[key] = val
+  }
+  return { env: out }
+}
+
+function addRow() {
+  if (!newKey.value) return
+  env.value = { ...env.value, [newKey.value]: newVal.value }
+  newKey.value = ''
+  newVal.value = ''
+}
+
+function removeKey(k: string) {
+  const next = { ...env.value }
+  delete next[k]
+  env.value = next
+  delete envRevealed.value[k]
+}
+
+function toggleReveal(k: string) {
+  envRevealed.value = { ...envRevealed.value, [k]: !envRevealed.value[k] }
+}
+
 async function saveEnv() {
-  await api.put(`/api/v1/apps/${props.name}/env`, { env: env.value })
+  envSaving.value = true
+  envSavedMsg.value = ''
+  try {
+    let payload: Record<string, string> = env.value
+    if (envMode.value === 'bulk') {
+      const r = parseBulk(envBulk.value)
+      if (r.error) {
+        envSavedMsg.value = 'error: ' + r.error
+        return
+      }
+      payload = r.env
+      env.value = payload
+    }
+    const qs = envRestartOnSave.value ? '?restart=1' : ''
+    const resp = await api.put<{ ok: boolean; restarted: boolean }>(
+      `/api/v1/apps/${props.name}/env${qs}`,
+      { env: payload },
+    )
+    envSavedMsg.value = resp.restarted ? 'saved + restarted' : 'saved'
+    setTimeout(() => (envSavedMsg.value = ''), 3000)
+  } catch (err: any) {
+    envSavedMsg.value = 'error: ' + (err?.error ?? 'save failed')
+  } finally {
+    envSaving.value = false
+  }
 }
 
 async function addDomain() {
@@ -171,18 +250,60 @@ function copy(text: string) {
       </dl>
     </section>
 
-    <section v-else-if="tab === 'env'" class="section">
-      <div v-for="(value, key) in env" :key="String(key)" class="row">
-        <UInput :model-value="String(key)" disabled />
-        <UInput v-model="env[String(key)]" type="password" />
-        <UButton color="error" variant="ghost" icon="i-lucide-x" @click="delete env[String(key)]" />
+    <section v-else-if="tab === 'env'" class="section env-tab">
+      <div class="env-head">
+        <h3 class="section-title">Environment variables</h3>
+        <URadioGroup
+          v-model="envMode"
+          :items="[{ label: 'Rows', value: 'rows' }, { label: 'Bulk (.env)', value: 'bulk' }]"
+          orientation="horizontal"
+          size="sm"
+          @update:model-value="(v: string) => v === 'bulk' && syncBulkFromRows()"
+        />
       </div>
-      <div class="row">
-        <UInput placeholder="NEW_KEY" v-model="newKey" />
-        <UInput placeholder="value" v-model="newVal" />
-        <UButton icon="i-lucide-plus" @click="env[newKey] = newVal; newKey = ''; newVal = ''" :disabled="!newKey" />
+
+      <template v-if="envMode === 'rows'">
+        <div v-for="(value, key) in env" :key="String(key)" class="env-row">
+          <UInput :model-value="String(key)" disabled class="k" />
+          <UInput
+            v-model="env[String(key)]"
+            :type="envRevealed[String(key)] || !isSecretKey(String(key)) ? 'text' : 'password'"
+            class="v"
+          />
+          <UButton
+            v-if="isSecretKey(String(key))"
+            size="xs"
+            variant="ghost"
+            :icon="envRevealed[String(key)] ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+            @click="toggleReveal(String(key))"
+          />
+          <UButton size="xs" color="error" variant="ghost" icon="i-lucide-x" @click="removeKey(String(key))" />
+        </div>
+        <div class="env-row">
+          <UInput placeholder="NEW_KEY" v-model="newKey" class="k" />
+          <UInput placeholder="value" v-model="newVal" class="v" />
+          <UButton size="xs" icon="i-lucide-plus" :disabled="!newKey" @click="addRow" />
+        </div>
+      </template>
+
+      <template v-else>
+        <UTextarea
+          v-model="envBulk"
+          :rows="14"
+          autoresize
+          placeholder="# Paste like a .env file
+NODE_ENV=production
+DATABASE_URL=postgres://..."
+          class="bulk"
+        />
+      </template>
+
+      <div class="env-actions">
+        <UCheckbox v-model="envRestartOnSave" label="Restart container after save" />
+        <div class="grow" />
+        <span v-if="envSavedMsg" class="muted small">{{ envSavedMsg }}</span>
+        <UButton :loading="envSaving" @click="saveEnv">Save env</UButton>
       </div>
-      <div style="margin-top: 1rem"><UButton @click="saveEnv">Save env</UButton></div>
     </section>
 
     <section v-else-if="tab === 'domains'" class="section">
@@ -343,6 +464,26 @@ function copy(text: string) {
   font-size: 0.85rem;
   margin: 0;
 }
+
+/* env tab */
+.env-tab { display: flex; flex-direction: column; gap: 0.75rem; }
+.env-head { display: flex; align-items: center; justify-content: space-between; }
+.env-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+.env-row .k { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.bulk :deep(textarea) {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.875rem;
+}
+.env-actions {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding-top: 0.5rem; border-top: 1px solid var(--ui-border);
+}
+.grow { flex: 1; }
 
 /* git tab */
 .git-tab { display: flex; flex-direction: column; gap: 1rem; }

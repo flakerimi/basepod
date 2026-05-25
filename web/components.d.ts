@@ -20,6 +20,7 @@ declare module 'vue' {
     UAvatar: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/Avatar.vue')['default']
     UButton: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/Button.vue')['default']
     UCard: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/Card.vue')['default']
+    UCheckbox: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/Checkbox.vue')['default']
     UFormField: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/FormField.vue')['default']
     UIcon: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/vue/components/Icon.vue')['default']
     UInput: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/Input.vue')['default']
@@ -28,5 +29,6 @@ declare module 'vue' {
     URadioGroup: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/RadioGroup.vue')['default']
     UTable: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/Table.vue')['default']
     UTabs: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/Tabs.vue')['default']
+    UTextarea: typeof import('./node_modules/.pnpm/@nuxt+ui@4.8.0_@internationalized+date@3.12.1_@internationalized+number@3.6.6_@tiptap+e_00310d4e273436c607b35da8cd9be0d6/node_modules/@nuxt/ui/dist/runtime/components/Textarea.vue')['default']
   }
 }

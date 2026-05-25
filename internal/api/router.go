@@ -69,6 +69,7 @@ func NewRouter(d Deps) http.Handler {
 		r.Get("/{name}/logs", logsSSEHandler(d))
 		r.Get("/{name}/env", getEnvHandler(d))
 		r.Put("/{name}/env", putEnvHandler(d))
+		r.Delete("/{name}/env/{key}", deleteEnvKeyHandler(d))
 		r.Get("/{name}/versions", listVersionsHandler(d))
 		r.Post("/{name}/domains", addDomainHandler(d))
 		r.Delete("/{name}/domains/{domain}", removeDomainHandler(d))
