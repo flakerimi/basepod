@@ -33,10 +33,33 @@ make run         # runs the server locally
 
 Requires Go 1.26, Podman 5+, Apple Silicon Mac.
 
-## Install (planned)
+## Install
+
+Apple Silicon Mac (arm64) only.
 
 ```
-curl https://get.basepod.dev | sh
+curl -fsSL https://raw.githubusercontent.com/flakerimi/basepod/main/scripts/install.sh | sh
+```
+
+Or build from source:
+
+```
+make build && make web
+./bin/basepod-server
+```
+
+Then open <http://localhost:8080> to log in (the admin password is printed on
+first run unless `BASEPOD_ADMIN_PASSWORD` is set).
+
+## Project layout
+
+```
+cmd/basepod-server/    Go server entrypoint
+cmd/basepod/           Go CLI entrypoint
+internal/              Server packages
+templates/             (legacy) — see internal/templates/bundled/
+web/                   Vue 3 SPA (built into bin via go:embed)
+scripts/               build.sh, install.sh
 ```
 
 ## License
