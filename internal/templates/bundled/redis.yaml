@@ -1,0 +1,19 @@
+id: redis
+name: Redis
+version: "7"
+description: In-memory data store, cache and message broker.
+icon: redis
+fields:
+  - key: REDIS_PASSWORD
+    label: Password (optional)
+    type: password
+deploy:
+  image: docker.io/library/redis:7-alpine
+  env:
+    REDIS_PASSWORD: "{{.REDIS_PASSWORD}}"
+  volumes:
+    - container: /data
+      host: "~/BasePodData/{{.app_name}}/redis"
+  ports:
+    - 6379
+  internal_only: true

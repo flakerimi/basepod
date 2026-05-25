@@ -1,0 +1,12 @@
+id: uptime-kuma
+name: Uptime Kuma
+version: latest
+description: Self-hosted monitoring tool.
+icon: uptime-kuma
+deploy:
+  image: docker.io/louislam/uptime-kuma:latest
+  volumes:
+    - container: /app/data
+      host: "~/BasePodData/{{.app_name}}/data"
+  ports:
+    - 3001

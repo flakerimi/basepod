@@ -11,11 +11,5 @@ func notImplemented(name string) http.HandlerFunc {
 	}
 }
 
-func listTemplatesHandler(d Deps) http.HandlerFunc  { return notImplemented("listTemplates") }
-func installTemplateHandler(d Deps) http.HandlerFunc {
-	return notImplemented("installTemplate")
-}
-func getSettingsHandler(d Deps) http.HandlerFunc { return notImplemented("getSettings") }
-func putSettingsHandler(d Deps) http.HandlerFunc { return notImplemented("putSettings") }
-func backupHandler(d Deps) http.HandlerFunc      { return notImplemented("backup") }
-func restoreHandler(d Deps) http.HandlerFunc     { return notImplemented("restore") }
+func backupHandler(d Deps) http.HandlerFunc  { return notImplemented("backup") }
+func restoreHandler(d Deps) http.HandlerFunc { return notImplemented("restore") }

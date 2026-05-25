@@ -1,0 +1,10 @@
+id: mailpit
+name: Mailpit
+version: latest
+description: Email & SMTP testing tool with web UI.
+icon: mailpit
+deploy:
+  image: docker.io/axllent/mailpit:latest
+  ports:
+    - 8025
+    - 1025

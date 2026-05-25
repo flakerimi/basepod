@@ -1,0 +1,24 @@
+id: mysql
+name: MySQL
+version: "8"
+description: Popular open-source relational database.
+icon: mysql
+fields:
+  - key: MYSQL_ROOT_PASSWORD
+    label: Root password
+    type: password
+    required: true
+  - key: MYSQL_DATABASE
+    label: Default database
+    default: app
+deploy:
+  image: docker.io/library/mysql:8
+  env:
+    MYSQL_ROOT_PASSWORD: "{{.MYSQL_ROOT_PASSWORD}}"
+    MYSQL_DATABASE: "{{.MYSQL_DATABASE}}"
+  volumes:
+    - container: /var/lib/mysql
+      host: "~/BasePodData/{{.app_name}}/mysql"
+  ports:
+    - 3306
+  internal_only: true

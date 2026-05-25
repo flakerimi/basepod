@@ -1,0 +1,24 @@
+id: minio
+name: MinIO
+version: latest
+description: S3-compatible object storage.
+icon: minio
+fields:
+  - key: MINIO_ROOT_USER
+    label: Admin username
+    default: admin
+  - key: MINIO_ROOT_PASSWORD
+    label: Admin password
+    type: password
+    required: true
+deploy:
+  image: docker.io/minio/minio:latest
+  env:
+    MINIO_ROOT_USER: "{{.MINIO_ROOT_USER}}"
+    MINIO_ROOT_PASSWORD: "{{.MINIO_ROOT_PASSWORD}}"
+  volumes:
+    - container: /data
+      host: "~/BasePodData/{{.app_name}}/minio"
+  ports:
+    - 9000
+    - 9001

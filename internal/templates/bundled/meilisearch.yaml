@@ -1,0 +1,19 @@
+id: meilisearch
+name: Meilisearch
+version: latest
+description: Lightning-fast search engine.
+icon: meilisearch
+fields:
+  - key: MEILI_MASTER_KEY
+    label: Master key
+    type: password
+    required: true
+deploy:
+  image: docker.io/getmeili/meilisearch:latest
+  env:
+    MEILI_MASTER_KEY: "{{.MEILI_MASTER_KEY}}"
+  volumes:
+    - container: /meili_data
+      host: "~/BasePodData/{{.app_name}}/meili"
+  ports:
+    - 7700

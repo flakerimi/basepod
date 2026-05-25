@@ -1,0 +1,24 @@
+id: mongodb
+name: MongoDB
+version: "7"
+description: General purpose, document-based, distributed database.
+icon: mongodb
+fields:
+  - key: MONGO_INITDB_ROOT_USERNAME
+    label: Root username
+    default: root
+  - key: MONGO_INITDB_ROOT_PASSWORD
+    label: Root password
+    type: password
+    required: true
+deploy:
+  image: docker.io/library/mongo:7
+  env:
+    MONGO_INITDB_ROOT_USERNAME: "{{.MONGO_INITDB_ROOT_USERNAME}}"
+    MONGO_INITDB_ROOT_PASSWORD: "{{.MONGO_INITDB_ROOT_PASSWORD}}"
+  volumes:
+    - container: /data/db
+      host: "~/BasePodData/{{.app_name}}/mongo"
+  ports:
+    - 27017
+  internal_only: true
