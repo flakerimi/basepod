@@ -24,7 +24,9 @@ type Querier interface {
 	DeleteApp(ctx context.Context, id string) error
 	DeleteAppDomain(ctx context.Context, arg DeleteAppDomainParams) error
 	DeleteAppEnv(ctx context.Context, arg DeleteAppEnvParams) error
+	DeleteAppPort(ctx context.Context, arg DeleteAppPortParams) error
 	DeleteAppVersionByID(ctx context.Context, id string) error
+	DeleteAppVolumeByPath(ctx context.Context, arg DeleteAppVolumeByPathParams) error
 	DeleteSession(ctx context.Context, id string) error
 	GetAppByID(ctx context.Context, id string) (App, error)
 	GetAppByName(ctx context.Context, name string) (App, error)

@@ -77,6 +77,11 @@ func NewRouter(d Deps) http.Handler {
 		r.Get("/{name}/git", getAppGitHandler(d))
 		r.Put("/{name}/git", putAppGitHandler(d))
 		r.Post("/{name}/webhook-secret", rotateWebhookSecretHandler(d))
+
+		r.Post("/{name}/ports", addPortHandler(d))
+		r.Delete("/{name}/ports/{port}", deletePortHandler(d))
+		r.Post("/{name}/volumes", addVolumeHandler(d))
+		r.Delete("/{name}/volumes/{path}", deleteVolumeHandler(d))
 	})
 
 	// Webhook delivery — accepts a third-party POST without our auth header;

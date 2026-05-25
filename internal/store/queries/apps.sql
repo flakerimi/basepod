@@ -86,6 +86,12 @@ SELECT * FROM app_ports WHERE app_id = ?;
 -- name: ClearAppPorts :exec
 DELETE FROM app_ports WHERE app_id = ?;
 
+-- name: DeleteAppPort :exec
+DELETE FROM app_ports WHERE app_id = ? AND container_port = ?;
+
+-- name: DeleteAppVolumeByPath :exec
+DELETE FROM app_volumes WHERE app_id = ? AND container_path = ?;
+
 -- name: AddAppDomain :exec
 INSERT INTO app_domains (id, app_id, domain, is_primary, tls_state)
 VALUES (?, ?, ?, ?, ?);

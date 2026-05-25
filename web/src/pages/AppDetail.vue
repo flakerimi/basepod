@@ -41,6 +41,21 @@ const cfgSaving = ref(false)
 const cfgSavedMsg = ref('')
 const cfgDirty = computed(() => JSON.stringify(cfg.value) !== JSON.stringify(cfgBase.value))
 
+interface AppVersion {
+  id: string
+  version: string
+  image_tag: string
+  status: string
+  deployed_at: number
+  log_excerpt?: string
+}
+const versions = ref<AppVersion[]>([])
+const rollingBack = ref<string | null>(null)
+
+const newPort = ref<number>(0)
+const newVolContainer = ref('')
+const newVolHost = ref('')
+
 // Git tab state
 interface GitConfig {
   url: string
@@ -78,6 +93,58 @@ async function load() {
   const e = await api.get<{ env: Record<string, string> }>(`/api/v1/apps/${props.name}/env`)
   env.value = e.env ?? {}
   await loadGit()
+  await loadVersions()
+}
+
+async function loadVersions() {
+  try {
+    const r = await api.get<{ versions: AppVersion[] }>(`/api/v1/apps/${props.name}/versions`)
+    versions.value = r.versions ?? []
+  } catch { /* ignore */ }
+}
+
+async function rollback(version: string) {
+  if (!confirm(`Roll back to ${version}?`)) return
+  rollingBack.value = version
+  try {
+    await api.post(`/api/v1/apps/${props.name}/rollback`, { version })
+    await load()
+  } finally {
+    rollingBack.value = null
+  }
+}
+
+function formatTs(ts: number) {
+  if (!ts) return '—'
+  return new Date(ts * 1000).toLocaleString()
+}
+
+async function addPort() {
+  if (!newPort.value || newPort.value < 1) return
+  await api.post(`/api/v1/apps/${props.name}/ports`, { port: newPort.value })
+  newPort.value = 0
+  app.value = await apps.get(props.name)
+}
+
+async function removePort(p: number) {
+  await api.del(`/api/v1/apps/${props.name}/ports/${p}`)
+  app.value = await apps.get(props.name)
+}
+
+async function addVolume() {
+  if (!newVolContainer.value || !newVolHost.value) return
+  await api.post(`/api/v1/apps/${props.name}/volumes`, {
+    container: newVolContainer.value,
+    host: newVolHost.value,
+  })
+  newVolContainer.value = ''
+  newVolHost.value = ''
+  app.value = await apps.get(props.name)
+}
+
+async function removeVolume(containerPath: string) {
+  await api.del(`/api/v1/apps/${props.name}/volumes/${encodeURIComponent(containerPath)}`)
+  app.value = await apps.get(props.name)
 }
 
 async function saveCfg() {
@@ -316,21 +383,41 @@ function copy(text: string) {
       </div>
 
       <hr class="sep" />
-      <h4 class="sub">Read-only</h4>
+      <h4 class="sub">Image</h4>
       <dl class="kv">
-        <dt>Image</dt><dd>{{ app.image_repo || '—' }}</dd>
-        <dt>Current version</dt><dd>{{ app.current_version || 'not deployed' }}</dd>
-        <dt>Ports</dt><dd>{{ app.ports.join(', ') || '—' }} <span class="muted small">(set at create time)</span></dd>
-        <dt>Volumes</dt>
-        <dd>
-          <ul v-if="app.volumes && app.volumes.length">
-            <li v-for="v in app.volumes" :key="v.container">
-              <code>{{ v.container }}</code> ← {{ v.host || v.named_volume }}
-            </li>
-          </ul>
-          <span v-else class="muted">none</span>
-        </dd>
+        <dt>Image</dt><dd><code>{{ app.image_repo || '—' }}</code></dd>
+        <dt>Current version</dt><dd><code>{{ app.current_version || 'not deployed' }}</code></dd>
       </dl>
+
+      <hr class="sep" />
+      <h4 class="sub">Container ports</h4>
+      <p class="muted small">Ports the container listens on. Changes take effect on next deploy or restart.</p>
+      <ul class="rows">
+        <li v-for="p in app.ports" :key="p">
+          <code>{{ p }}</code>
+          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" @click="removePort(p)" />
+        </li>
+      </ul>
+      <div class="add-row">
+        <UInput v-model.number="newPort" type="number" min="1" max="65535" placeholder="3000" />
+        <UButton size="sm" icon="i-lucide-plus" :disabled="!newPort" @click="addPort">Add port</UButton>
+      </div>
+
+      <hr class="sep" />
+      <h4 class="sub">Volumes</h4>
+      <p class="muted small">Bind-mounts from the Mac host into the container. <code>~/</code> expands at save time.</p>
+      <ul class="rows">
+        <li v-for="v in app.volumes" :key="v.container">
+          <code>{{ v.container }}</code>
+          <span class="muted">← {{ v.host || v.named_volume }}</span>
+          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" @click="removeVolume(v.container)" />
+        </li>
+      </ul>
+      <div class="add-row vol">
+        <UInput v-model="newVolContainer" placeholder="/data" />
+        <UInput v-model="newVolHost" placeholder="~/BasePodData/myapp/data" />
+        <UButton size="sm" icon="i-lucide-plus" :disabled="!newVolContainer || !newVolHost" @click="addVolume">Add</UButton>
+      </div>
     </section>
 
     <section v-else-if="tab === 'env'" class="section env-tab">
@@ -516,8 +603,39 @@ DATABASE_URL=postgres://..."
       <pre class="logs">{{ logs.join('\n') || '— start streaming to see container logs —' }}</pre>
     </section>
 
-    <section v-else-if="tab === 'versions'" class="section">
-      <p class="muted">Coming soon: version history + rollback.</p>
+    <section v-else-if="tab === 'versions'" class="section versions-tab">
+      <h3 class="section-title">Deploy history</h3>
+      <p class="muted small">Last 5 versions are kept. Rollback re-deploys the selected image tag.</p>
+      <table v-if="versions.length" class="versions">
+        <thead>
+          <tr>
+            <th>Version</th>
+            <th>Image</th>
+            <th>Status</th>
+            <th>Deployed</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="v in versions" :key="v.id" :class="{ current: v.version === app.current_version }">
+            <td><code>{{ v.version }}</code><span v-if="v.version === app.current_version" class="badge">current</span></td>
+            <td><code>{{ v.image_tag || '—' }}</code></td>
+            <td><span class="status" :data-status="v.status">{{ v.status }}</span></td>
+            <td>{{ formatTs(v.deployed_at) }}</td>
+            <td>
+              <UButton
+                v-if="v.version !== app.current_version && v.status === 'succeeded'"
+                size="xs"
+                variant="outline"
+                icon="i-lucide-rewind"
+                :loading="rollingBack === v.version"
+                @click="rollback(v.version)"
+              >Rollback</UButton>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="muted">No deploys yet.</p>
     </section>
   </div>
 </template>
@@ -551,6 +669,37 @@ DATABASE_URL=postgres://..."
 /* overview tab */
 .overview-tab { display: flex; flex-direction: column; gap: 0.75rem; }
 .overview-tab .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem 1.25rem; }
+.rows { list-style: none; padding: 0; margin: 0 0 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.rows li {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--ui-bg-muted);
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+}
+.add-row { display: flex; gap: 0.5rem; align-items: center; }
+.add-row.vol { display: grid; grid-template-columns: 1fr 2fr auto; }
+
+/* versions tab */
+.versions-tab { display: flex; flex-direction: column; gap: 0.75rem; }
+.versions { width: 100%; border-collapse: collapse; }
+.versions th, .versions td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid var(--ui-border); }
+.versions th { color: var(--ui-text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.versions tr.current { background: color-mix(in oklch, var(--color-primary-500) 6%, transparent); }
+.versions code { font-size: 0.85rem; }
+.versions .badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  background: var(--color-primary-500);
+  color: white;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+}
+.versions .status { font-size: 0.85rem; }
+.versions .status[data-status="succeeded"] { color: #16a34a; }
+.versions .status[data-status="failed"] { color: #dc2626; }
+.versions .status[data-status="deploying"], .versions .status[data-status="building"], .versions .status[data-status="cloning"] { color: var(--color-primary-600); }
 
 /* env tab */
 .env-tab { display: flex; flex-direction: column; gap: 0.75rem; }

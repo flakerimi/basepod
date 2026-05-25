@@ -215,12 +215,40 @@ func (q *Queries) DeleteAppEnv(ctx context.Context, arg DeleteAppEnvParams) erro
 	return err
 }
 
+const deleteAppPort = `-- name: DeleteAppPort :exec
+DELETE FROM app_ports WHERE app_id = ? AND container_port = ?
+`
+
+type DeleteAppPortParams struct {
+	AppID         string `json:"app_id"`
+	ContainerPort int64  `json:"container_port"`
+}
+
+func (q *Queries) DeleteAppPort(ctx context.Context, arg DeleteAppPortParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAppPort, arg.AppID, arg.ContainerPort)
+	return err
+}
+
 const deleteAppVersionByID = `-- name: DeleteAppVersionByID :exec
 DELETE FROM app_versions WHERE id = ?
 `
 
 func (q *Queries) DeleteAppVersionByID(ctx context.Context, id string) error {
 	_, err := q.db.ExecContext(ctx, deleteAppVersionByID, id)
+	return err
+}
+
+const deleteAppVolumeByPath = `-- name: DeleteAppVolumeByPath :exec
+DELETE FROM app_volumes WHERE app_id = ? AND container_path = ?
+`
+
+type DeleteAppVolumeByPathParams struct {
+	AppID         string `json:"app_id"`
+	ContainerPath string `json:"container_path"`
+}
+
+func (q *Queries) DeleteAppVolumeByPath(ctx context.Context, arg DeleteAppVolumeByPathParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAppVolumeByPath, arg.AppID, arg.ContainerPath)
 	return err
 }
 
