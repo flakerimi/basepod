@@ -11,20 +11,6 @@ func notImplemented(name string) http.HandlerFunc {
 	}
 }
 
-func listAppsHandler(d Deps) http.HandlerFunc       { return notImplemented("listApps") }
-func createAppHandler(d Deps) http.HandlerFunc      { return notImplemented("createApp") }
-func getAppHandler(d Deps) http.HandlerFunc         { return notImplemented("getApp") }
-func updateAppHandler(d Deps) http.HandlerFunc      { return notImplemented("updateApp") }
-func deleteAppHandler(d Deps) http.HandlerFunc      { return notImplemented("deleteApp") }
-func deployHandler(d Deps) http.HandlerFunc         { return notImplemented("deploy") }
-func restartAppHandler(d Deps) http.HandlerFunc     { return notImplemented("restart") }
-func rollbackHandler(d Deps) http.HandlerFunc       { return notImplemented("rollback") }
-func logsSSEHandler(d Deps) http.HandlerFunc        { return notImplemented("logs") }
-func getEnvHandler(d Deps) http.HandlerFunc         { return notImplemented("getEnv") }
-func putEnvHandler(d Deps) http.HandlerFunc         { return notImplemented("putEnv") }
-func listVersionsHandler(d Deps) http.HandlerFunc   { return notImplemented("listVersions") }
-func addDomainHandler(d Deps) http.HandlerFunc      { return notImplemented("addDomain") }
-func removeDomainHandler(d Deps) http.HandlerFunc   { return notImplemented("removeDomain") }
 func listTemplatesHandler(d Deps) http.HandlerFunc  { return notImplemented("listTemplates") }
 func installTemplateHandler(d Deps) http.HandlerFunc {
 	return notImplemented("installTemplate")

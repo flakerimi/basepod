@@ -8,24 +8,30 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/flakerimi/basepod/internal/apps"
 	"github.com/flakerimi/basepod/internal/auth"
+	"github.com/flakerimi/basepod/internal/builder"
 	"github.com/flakerimi/basepod/internal/caddy"
 	"github.com/flakerimi/basepod/internal/config"
+	"github.com/flakerimi/basepod/internal/deploy"
 	"github.com/flakerimi/basepod/internal/events"
 	"github.com/flakerimi/basepod/internal/podman"
 	"github.com/flakerimi/basepod/internal/store/db"
 )
 
 type Deps struct {
-	Cfg     config.Config
-	DB      *sql.DB
-	Queries *db.Queries
-	Auth    *auth.Service
-	Podman  *podman.Client
-	Caddy   *caddy.Client
-	Events  *events.Hub
-	Log     *slog.Logger
-	Version string
+	Cfg          config.Config
+	DB           *sql.DB
+	Queries      *db.Queries
+	Auth         *auth.Service
+	Apps         *apps.Service
+	Builder      *builder.Builder
+	Orchestrator *deploy.Orchestrator
+	Podman       *podman.Client
+	Caddy        *caddy.Client
+	Events       *events.Hub
+	Log          *slog.Logger
+	Version      string
 }
 
 func NewRouter(d Deps) http.Handler {
