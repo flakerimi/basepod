@@ -9,19 +9,24 @@ import (
 )
 
 type App struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	ImageRepo       string `json:"image_repo"`
-	CurrentVersion  string `json:"current_version"`
-	Instances       int64  `json:"instances"`
-	DeployStrategy  string `json:"deploy_strategy"`
-	HealthcheckPath string `json:"healthcheck_path"`
-	HealthcheckCmd  string `json:"healthcheck_cmd"`
-	InternalOnly    int64  `json:"internal_only"`
-	MemoryMb        int64  `json:"memory_mb"`
-	CpuPct          int64  `json:"cpu_pct"`
-	CreatedAt       int64  `json:"created_at"`
-	UpdatedAt       int64  `json:"updated_at"`
+	ID                     string `json:"id"`
+	Name                   string `json:"name"`
+	ImageRepo              string `json:"image_repo"`
+	CurrentVersion         string `json:"current_version"`
+	Instances              int64  `json:"instances"`
+	DeployStrategy         string `json:"deploy_strategy"`
+	HealthcheckPath        string `json:"healthcheck_path"`
+	HealthcheckCmd         string `json:"healthcheck_cmd"`
+	InternalOnly           int64  `json:"internal_only"`
+	MemoryMb               int64  `json:"memory_mb"`
+	CpuPct                 int64  `json:"cpu_pct"`
+	CreatedAt              int64  `json:"created_at"`
+	UpdatedAt              int64  `json:"updated_at"`
+	GitUrl                 string `json:"git_url"`
+	GitBranch              string `json:"git_branch"`
+	GitDockerfile          string `json:"git_dockerfile"`
+	GitTokenEncrypted      []byte `json:"git_token_encrypted"`
+	WebhookSecretEncrypted []byte `json:"webhook_secret_encrypted"`
 }
 
 type AppDomain struct {

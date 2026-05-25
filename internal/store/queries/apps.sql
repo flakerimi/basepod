@@ -99,6 +99,22 @@ SELECT * FROM app_domains ORDER BY domain;
 -- name: DeleteAppDomain :exec
 DELETE FROM app_domains WHERE app_id = ? AND domain = ?;
 
+-- name: SetAppGit :exec
+UPDATE apps SET
+    git_url = ?,
+    git_branch = ?,
+    git_dockerfile = ?,
+    git_token_encrypted = ?,
+    updated_at = ?
+WHERE id = ?;
+
+-- name: SetAppWebhookSecret :exec
+UPDATE apps SET webhook_secret_encrypted = ?, updated_at = ? WHERE id = ?;
+
+-- name: GetAppGit :one
+SELECT git_url, git_branch, git_dockerfile, git_token_encrypted, webhook_secret_encrypted
+FROM apps WHERE id = ?;
+
 -- name: GetSetting :one
 SELECT value FROM settings WHERE key = ?;
 

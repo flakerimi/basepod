@@ -51,35 +51,51 @@ func deployHandler(d Deps) http.HandlerFunc {
 		ct := r.Header.Get("Content-Type")
 		switch {
 		case strings.HasPrefix(ct, "application/json"):
-			handleImageDeploy(w, r, d, a)
+			// Peek the body to discriminate {image:...} vs {git:{...}}
+			var body struct {
+				Image string `json:"image"`
+				Git   *struct {
+					URL    string `json:"url"`
+					Branch string `json:"branch"`
+					Commit string `json:"commit"`
+				} `json:"git"`
+				FromStored bool `json:"from_stored"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			switch {
+			case body.Git != nil:
+				handleGitDeploy(w, r, d, a, body.Git.URL, body.Git.Branch, body.Git.Commit, "")
+			case body.FromStored:
+				handleGitDeployFromStored(w, r, d, a, "")
+			default:
+				if body.Image == "" {
+					writeErr(w, 400, "bad_request", "missing image, git, or from_stored")
+					return
+				}
+				handleImageDeployJSON(w, r, d, a, body.Image)
+			}
 		default:
 			handleTarballDeploy(w, r, d, a)
 		}
 	}
 }
 
-func handleImageDeploy(w http.ResponseWriter, r *http.Request, d Deps, a *apps.App) {
-	var body struct {
-		Image string `json:"image"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Image == "" {
-		writeErr(w, 400, "bad_request", "image required")
-		return
-	}
+func handleImageDeployJSON(w http.ResponseWriter, r *http.Request, d Deps, a *apps.App, image string) {
 	topic := "app:" + a.Name + ":deploy"
-	d.Events.Publish(topic, "started", map[string]any{"image": body.Image})
-	if err := d.Builder.PullImage(r.Context(), body.Image); err != nil {
+	d.Events.Publish(topic, "started", map[string]any{"image": image})
+	if err := d.Builder.PullImage(r.Context(), image); err != nil {
 		d.Events.Publish(topic, "failed", map[string]any{"error": err.Error()})
 		writeErr(w, 502, "pull_failed", err.Error())
 		return
 	}
 	version := nowVersion()
-	verID, _ := d.Apps.RecordVersion(r.Context(), a.ID, version, body.Image, "deploying")
+	verID, _ := d.Apps.RecordVersion(r.Context(), a.ID, version, image, "deploying")
+	audit(r.Context(), d, "app.deploy", a.Name, map[string]any{"mode": "image", "image": image})
 	go func() {
 		ctx := context.Background()
 		err := d.Orchestrator.Deploy(ctx, deploy.Request{
 			App:      a,
-			ImageTag: body.Image,
+			ImageTag: image,
 			Version:  version,
 			Strategy: a.DeployStrategy,
 		})

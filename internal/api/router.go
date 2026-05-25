@@ -13,6 +13,7 @@ import (
 	"github.com/flakerimi/basepod/internal/builder"
 	"github.com/flakerimi/basepod/internal/caddy"
 	"github.com/flakerimi/basepod/internal/config"
+	bpcrypto "github.com/flakerimi/basepod/internal/crypto"
 	"github.com/flakerimi/basepod/internal/deploy"
 	"github.com/flakerimi/basepod/internal/events"
 	"github.com/flakerimi/basepod/internal/podman"
@@ -30,6 +31,7 @@ type Deps struct {
 	Podman       *podman.Client
 	Caddy        *caddy.Client
 	Events       *events.Hub
+	EnvCipher    *bpcrypto.EnvCipher
 	Log          *slog.Logger
 	Version      string
 }
@@ -70,7 +72,15 @@ func NewRouter(d Deps) http.Handler {
 		r.Get("/{name}/versions", listVersionsHandler(d))
 		r.Post("/{name}/domains", addDomainHandler(d))
 		r.Delete("/{name}/domains/{domain}", removeDomainHandler(d))
+
+		r.Get("/{name}/git", getAppGitHandler(d))
+		r.Put("/{name}/git", putAppGitHandler(d))
+		r.Post("/{name}/webhook-secret", rotateWebhookSecretHandler(d))
 	})
+
+	// Webhook delivery — accepts a third-party POST without our auth header;
+	// the body's HMAC signature is what authenticates it.
+	r.Post("/api/v1/apps/{name}/webhook", webhookDeliveryHandler(d))
 
 	r.With(d.Auth.Middleware).Get("/api/v1/templates", listTemplatesHandler(d))
 	r.With(d.Auth.Middleware).Post("/api/v1/templates/install", installTemplateHandler(d))

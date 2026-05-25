@@ -28,6 +28,7 @@ type Querier interface {
 	DeleteSession(ctx context.Context, id string) error
 	GetAppByID(ctx context.Context, id string) (App, error)
 	GetAppByName(ctx context.Context, name string) (App, error)
+	GetAppGit(ctx context.Context, id string) (GetAppGitRow, error)
 	GetSession(ctx context.Context, arg GetSessionParams) (Session, error)
 	GetSetting(ctx context.Context, key string) (string, error)
 	GetTokenByHash(ctx context.Context, hash string) (Token, error)
@@ -51,6 +52,8 @@ type Querier interface {
 	RecordTemplateInstall(ctx context.Context, arg RecordTemplateInstallParams) error
 	RevokeToken(ctx context.Context, arg RevokeTokenParams) error
 	SetAppCurrentVersion(ctx context.Context, arg SetAppCurrentVersionParams) error
+	SetAppGit(ctx context.Context, arg SetAppGitParams) error
+	SetAppWebhookSecret(ctx context.Context, arg SetAppWebhookSecretParams) error
 	TouchToken(ctx context.Context, arg TouchTokenParams) error
 	UpdateApp(ctx context.Context, arg UpdateAppParams) error
 	UpdateAppVersionStatus(ctx context.Context, arg UpdateAppVersionStatusParams) error

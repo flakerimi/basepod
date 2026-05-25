@@ -225,7 +225,7 @@ func (q *Queries) DeleteAppVersionByID(ctx context.Context, id string) error {
 }
 
 const getAppByID = `-- name: GetAppByID :one
-SELECT id, name, image_repo, current_version, instances, deploy_strategy, healthcheck_path, healthcheck_cmd, internal_only, memory_mb, cpu_pct, created_at, updated_at FROM apps WHERE id = ?
+SELECT id, name, image_repo, current_version, instances, deploy_strategy, healthcheck_path, healthcheck_cmd, internal_only, memory_mb, cpu_pct, created_at, updated_at, git_url, git_branch, git_dockerfile, git_token_encrypted, webhook_secret_encrypted FROM apps WHERE id = ?
 `
 
 func (q *Queries) GetAppByID(ctx context.Context, id string) (App, error) {
@@ -245,12 +245,17 @@ func (q *Queries) GetAppByID(ctx context.Context, id string) (App, error) {
 		&i.CpuPct,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GitUrl,
+		&i.GitBranch,
+		&i.GitDockerfile,
+		&i.GitTokenEncrypted,
+		&i.WebhookSecretEncrypted,
 	)
 	return i, err
 }
 
 const getAppByName = `-- name: GetAppByName :one
-SELECT id, name, image_repo, current_version, instances, deploy_strategy, healthcheck_path, healthcheck_cmd, internal_only, memory_mb, cpu_pct, created_at, updated_at FROM apps WHERE name = ?
+SELECT id, name, image_repo, current_version, instances, deploy_strategy, healthcheck_path, healthcheck_cmd, internal_only, memory_mb, cpu_pct, created_at, updated_at, git_url, git_branch, git_dockerfile, git_token_encrypted, webhook_secret_encrypted FROM apps WHERE name = ?
 `
 
 func (q *Queries) GetAppByName(ctx context.Context, name string) (App, error) {
@@ -270,6 +275,37 @@ func (q *Queries) GetAppByName(ctx context.Context, name string) (App, error) {
 		&i.CpuPct,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GitUrl,
+		&i.GitBranch,
+		&i.GitDockerfile,
+		&i.GitTokenEncrypted,
+		&i.WebhookSecretEncrypted,
+	)
+	return i, err
+}
+
+const getAppGit = `-- name: GetAppGit :one
+SELECT git_url, git_branch, git_dockerfile, git_token_encrypted, webhook_secret_encrypted
+FROM apps WHERE id = ?
+`
+
+type GetAppGitRow struct {
+	GitUrl                 string `json:"git_url"`
+	GitBranch              string `json:"git_branch"`
+	GitDockerfile          string `json:"git_dockerfile"`
+	GitTokenEncrypted      []byte `json:"git_token_encrypted"`
+	WebhookSecretEncrypted []byte `json:"webhook_secret_encrypted"`
+}
+
+func (q *Queries) GetAppGit(ctx context.Context, id string) (GetAppGitRow, error) {
+	row := q.db.QueryRowContext(ctx, getAppGit, id)
+	var i GetAppGitRow
+	err := row.Scan(
+		&i.GitUrl,
+		&i.GitBranch,
+		&i.GitDockerfile,
+		&i.GitTokenEncrypted,
+		&i.WebhookSecretEncrypted,
 	)
 	return i, err
 }
@@ -546,7 +582,7 @@ func (q *Queries) ListAppVolumes(ctx context.Context, appID string) ([]AppVolume
 }
 
 const listApps = `-- name: ListApps :many
-SELECT id, name, image_repo, current_version, instances, deploy_strategy, healthcheck_path, healthcheck_cmd, internal_only, memory_mb, cpu_pct, created_at, updated_at FROM apps ORDER BY name
+SELECT id, name, image_repo, current_version, instances, deploy_strategy, healthcheck_path, healthcheck_cmd, internal_only, memory_mb, cpu_pct, created_at, updated_at, git_url, git_branch, git_dockerfile, git_token_encrypted, webhook_secret_encrypted FROM apps ORDER BY name
 `
 
 func (q *Queries) ListApps(ctx context.Context) ([]App, error) {
@@ -572,6 +608,11 @@ func (q *Queries) ListApps(ctx context.Context) ([]App, error) {
 			&i.CpuPct,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.GitUrl,
+			&i.GitBranch,
+			&i.GitDockerfile,
+			&i.GitTokenEncrypted,
+			&i.WebhookSecretEncrypted,
 		); err != nil {
 			return nil, err
 		}
@@ -688,6 +729,52 @@ func (q *Queries) SetAppCurrentVersion(ctx context.Context, arg SetAppCurrentVer
 		arg.UpdatedAt,
 		arg.ID,
 	)
+	return err
+}
+
+const setAppGit = `-- name: SetAppGit :exec
+UPDATE apps SET
+    git_url = ?,
+    git_branch = ?,
+    git_dockerfile = ?,
+    git_token_encrypted = ?,
+    updated_at = ?
+WHERE id = ?
+`
+
+type SetAppGitParams struct {
+	GitUrl            string `json:"git_url"`
+	GitBranch         string `json:"git_branch"`
+	GitDockerfile     string `json:"git_dockerfile"`
+	GitTokenEncrypted []byte `json:"git_token_encrypted"`
+	UpdatedAt         int64  `json:"updated_at"`
+	ID                string `json:"id"`
+}
+
+func (q *Queries) SetAppGit(ctx context.Context, arg SetAppGitParams) error {
+	_, err := q.db.ExecContext(ctx, setAppGit,
+		arg.GitUrl,
+		arg.GitBranch,
+		arg.GitDockerfile,
+		arg.GitTokenEncrypted,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const setAppWebhookSecret = `-- name: SetAppWebhookSecret :exec
+UPDATE apps SET webhook_secret_encrypted = ?, updated_at = ? WHERE id = ?
+`
+
+type SetAppWebhookSecretParams struct {
+	WebhookSecretEncrypted []byte `json:"webhook_secret_encrypted"`
+	UpdatedAt              int64  `json:"updated_at"`
+	ID                     string `json:"id"`
+}
+
+func (q *Queries) SetAppWebhookSecret(ctx context.Context, arg SetAppWebhookSecretParams) error {
+	_, err := q.db.ExecContext(ctx, setAppWebhookSecret, arg.WebhookSecretEncrypted, arg.UpdatedAt, arg.ID)
 	return err
 }
 
