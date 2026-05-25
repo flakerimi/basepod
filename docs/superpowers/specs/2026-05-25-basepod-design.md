@@ -415,14 +415,24 @@ Same binary works against any BasePod server via `--server` flag.
 - **Frontend**: Vitest for stores; Playwright for one smoke flow
   (login -> create app -> deploy mock -> see logs).
 
-## 16. Open questions
+## 16. Distribution & target
 
-- macOS launchd unit shape for `basepod-server` (background service).
-- Whether to ship a `.pkg` installer or `brew` formula or both.
-- Whether to support multi-arch builds (amd64+arm64) on initial build,
-  or arm64-only since target is Apple Silicon Macs.
+- **Distribution (v1)**: `curl https://get.basepod.dev | sh` install
+  script. Downloads the latest darwin/arm64 binary, places it at
+  `/usr/local/bin/basepod-server` and `/usr/local/bin/basepod`, then
+  installs a launchd plist at
+  `~/Library/LaunchAgents/dev.basepod.server.plist` to run as a user
+  agent and restart on crash. Brew formula and `.pkg` deferred.
+- **Architecture (v1)**: **darwin/arm64 only** (Apple Silicon). Intel
+  Mac support deferred. CI builds a single arm64 binary; `go build`
+  with `GOOS=darwin GOARCH=arm64`.
 
-## 17. Repository layout
+## 17. Open questions
+
+- Exact launchd plist contents (RunAtLoad, KeepAlive, StandardOutPath,
+  EnvironmentVariables) — finalize during implementation.
+
+## 18. Repository layout
 
 ```
 BasePod/
@@ -440,7 +450,7 @@ BasePod/
 +- README.md
 ```
 
-## 18. Dependencies (Go)
+## 19. Dependencies (Go)
 
 - `github.com/go-chi/chi/v5` — router
 - `modernc.org/sqlite` — CGO-free SQLite
@@ -452,7 +462,7 @@ BasePod/
 - `github.com/golang-jwt/jwt/v5` — token signing (HMAC)
 - `github.com/spf13/cobra` — CLI
 
-## 19. Versioning
+## 20. Versioning
 
 - SemVer for the binary.
 - API versioned at `/api/v1`. Future breaking changes get `/api/v2`.
