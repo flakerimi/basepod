@@ -55,6 +55,18 @@ func (c *Client) VolumeCreate(ctx context.Context, req VolumeCreateRequest) erro
 	return c.postJSON(ctx, "/volumes/create", req, nil)
 }
 
+// VolumeExportToFile writes a tar archive of the named volume's contents to
+// dst. It shells out to the local `podman` binary since libpod REST does not
+// expose a streaming export endpoint.
+func (c *Client) VolumeExportToFile(ctx context.Context, name, dst string) error {
+	return runPodman(ctx, "volume", "export", name, "-o", dst)
+}
+
+// VolumeImportFromFile is the reverse — used by manual restore tooling.
+func (c *Client) VolumeImportFromFile(ctx context.Context, name, src string) error {
+	return runPodman(ctx, "volume", "import", name, src)
+}
+
 func (c *Client) VolumeExists(ctx context.Context, name string) (bool, error) {
 	resp, err := c.do(ctx, "GET", "/volumes/"+url.PathEscape(name)+"/exists", nil, "")
 	if err != nil {
