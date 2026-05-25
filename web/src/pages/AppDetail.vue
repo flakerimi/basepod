@@ -350,73 +350,113 @@ function copy(text: string) {
       ]"
     />
 
-    <section v-if="tab === 'overview'" class="section overview-tab">
-      <h3 class="section-title">Configuration</h3>
-      <div class="grid">
-        <UFormField label="Deploy strategy" help="blue/green = zero downtime, ~2× RAM during swap. stop/start = brief downtime.">
-          <USelect
-            v-model="cfg.deploy_strategy"
-            :items="[{ label: 'blue/green', value: 'blue_green' }, { label: 'stop/start', value: 'stop_start' }]"
-          />
-        </UFormField>
-        <UFormField label="Instances" help="v1 records the desired count; multi-replica orchestration not yet implemented.">
-          <UInput v-model.number="cfg.instances" type="number" min="1" />
-        </UFormField>
-        <UFormField label="Memory limit (MB)" help="0 = unlimited">
-          <UInput v-model.number="cfg.memory_mb" type="number" min="0" />
-        </UFormField>
-        <UFormField label="CPU limit (%)" help="0 = unlimited; 100 = one core">
-          <UInput v-model.number="cfg.cpu_pct" type="number" min="0" max="800" />
-        </UFormField>
-        <UFormField label="Healthcheck path" help="HTTP path returning 2xx when healthy. Empty = use container's HEALTHCHECK.">
-          <UInput v-model="cfg.healthcheck_path" placeholder="/healthz" />
-        </UFormField>
-        <UFormField label="Internal only" help="If on, the app is excluded from Caddy routing — reachable only from other containers on the basepod network.">
-          <USwitch v-model="cfg.internal_only" />
-        </UFormField>
-      </div>
-      <div class="actions-row">
-        <UButton :loading="cfgSaving" :disabled="!cfgDirty" @click="saveCfg">Save</UButton>
-        <UButton v-if="cfgDirty" color="neutral" variant="ghost" @click="resetCfg">Reset</UButton>
-        <div class="grow" />
-        <span v-if="cfgSavedMsg" class="muted small">{{ cfgSavedMsg }}</span>
+    <section v-if="tab === 'overview'" class="overview-tab">
+      <!-- Status banner -->
+      <div class="status-card">
+        <div class="status-main">
+          <span class="dot" :data-state="app.current_version ? 'running' : 'idle'"></span>
+          <div>
+            <div class="status-label">{{ app.current_version ? 'Deployed' : 'Not deployed' }}</div>
+            <div class="status-sub muted">
+              <code v-if="app.image_repo">{{ app.image_repo }}</code>
+              <span v-else>no image yet</span>
+              <span v-if="app.current_version"> · <code>{{ app.current_version }}</code></span>
+            </div>
+          </div>
+        </div>
+        <div class="status-chips">
+          <span class="chip">{{ app.deploy_strategy }}</span>
+          <span class="chip" v-if="app.instances > 1">×{{ app.instances }}</span>
+          <span class="chip" v-if="app.internal_only">internal</span>
+          <span class="chip" v-if="app.memory_mb">{{ app.memory_mb }} MB</span>
+          <span class="chip" v-if="app.cpu_pct">{{ app.cpu_pct }}% CPU</span>
+        </div>
       </div>
 
-      <hr class="sep" />
-      <h4 class="sub">Image</h4>
-      <dl class="kv">
-        <dt>Image</dt><dd><code>{{ app.image_repo || '—' }}</code></dd>
-        <dt>Current version</dt><dd><code>{{ app.current_version || 'not deployed' }}</code></dd>
-      </dl>
+      <!-- Two columns -->
+      <div class="two-col">
+        <!-- LEFT: configuration form -->
+        <div class="ov-card">
+          <div class="card-head">
+            <h3>Configuration</h3>
+            <span v-if="cfgSavedMsg" class="muted small">{{ cfgSavedMsg }}</span>
+          </div>
+          <div class="form-grid">
+            <UFormField label="Deploy strategy">
+              <USelect
+                v-model="cfg.deploy_strategy"
+                :items="[{ label: 'blue/green', value: 'blue_green' }, { label: 'stop/start', value: 'stop_start' }]"
+              />
+            </UFormField>
+            <UFormField label="Instances">
+              <UInput v-model.number="cfg.instances" type="number" min="1" />
+            </UFormField>
+            <UFormField label="Memory (MB)" help="0 = unlimited">
+              <UInput v-model.number="cfg.memory_mb" type="number" min="0" />
+            </UFormField>
+            <UFormField label="CPU (%)" help="0 = unlimited">
+              <UInput v-model.number="cfg.cpu_pct" type="number" min="0" max="800" />
+            </UFormField>
+            <UFormField label="Healthcheck path" class="span-2">
+              <UInput v-model="cfg.healthcheck_path" placeholder="/healthz" />
+            </UFormField>
+            <div class="span-2 switch-row">
+              <div>
+                <div class="switch-label">Internal only</div>
+                <div class="muted small">Excluded from public Caddy routing</div>
+              </div>
+              <USwitch v-model="cfg.internal_only" />
+            </div>
+          </div>
+          <div class="card-foot">
+            <UButton :loading="cfgSaving" :disabled="!cfgDirty" @click="saveCfg">Save changes</UButton>
+            <UButton v-if="cfgDirty" color="neutral" variant="ghost" @click="resetCfg">Reset</UButton>
+          </div>
+        </div>
 
-      <hr class="sep" />
-      <h4 class="sub">Container ports</h4>
-      <p class="muted small">Ports the container listens on. Changes take effect on next deploy or restart.</p>
-      <ul class="rows">
-        <li v-for="p in app.ports" :key="p">
-          <code>{{ p }}</code>
-          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" @click="removePort(p)" />
-        </li>
-      </ul>
-      <div class="add-row">
-        <UInput v-model.number="newPort" type="number" min="1" max="65535" placeholder="3000" />
-        <UButton size="sm" icon="i-lucide-plus" :disabled="!newPort" @click="addPort">Add port</UButton>
-      </div>
+        <!-- RIGHT: ports + volumes stacked -->
+        <div class="right-col">
+          <div class="ov-card compact">
+            <div class="card-head">
+              <h3>Ports</h3>
+              <span class="muted small">applied on redeploy</span>
+            </div>
+            <ul class="chips-list" v-if="app.ports.length">
+              <li v-for="p in app.ports" :key="p">
+                <code>{{ p }}</code>
+                <button class="chip-x" @click="removePort(p)" aria-label="remove">×</button>
+              </li>
+            </ul>
+            <p v-else class="muted small empty">No ports defined.</p>
+            <div class="add-inline">
+              <UInput v-model.number="newPort" type="number" min="1" max="65535" placeholder="3000" size="sm" />
+              <UButton size="sm" icon="i-lucide-plus" :disabled="!newPort" @click="addPort">Add</UButton>
+            </div>
+          </div>
 
-      <hr class="sep" />
-      <h4 class="sub">Volumes</h4>
-      <p class="muted small">Bind-mounts from the Mac host into the container. <code>~/</code> expands at save time.</p>
-      <ul class="rows">
-        <li v-for="v in app.volumes" :key="v.container">
-          <code>{{ v.container }}</code>
-          <span class="muted">← {{ v.host || v.named_volume }}</span>
-          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" @click="removeVolume(v.container)" />
-        </li>
-      </ul>
-      <div class="add-row vol">
-        <UInput v-model="newVolContainer" placeholder="/data" />
-        <UInput v-model="newVolHost" placeholder="~/BasePodData/myapp/data" />
-        <UButton size="sm" icon="i-lucide-plus" :disabled="!newVolContainer || !newVolHost" @click="addVolume">Add</UButton>
+          <div class="ov-card compact">
+            <div class="card-head">
+              <h3>Volumes</h3>
+              <span class="muted small"><code>~/</code> expands on save</span>
+            </div>
+            <ul class="vol-list" v-if="app.volumes.length">
+              <li v-for="v in app.volumes" :key="v.container">
+                <div class="vol-line">
+                  <code class="vol-c">{{ v.container }}</code>
+                  <span class="muted arrow">←</span>
+                  <code class="vol-h">{{ v.host || v.named_volume }}</code>
+                </div>
+                <button class="chip-x" @click="removeVolume(v.container)" aria-label="remove">×</button>
+              </li>
+            </ul>
+            <p v-else class="muted small empty">No volumes mounted.</p>
+            <div class="add-inline vol-add">
+              <UInput v-model="newVolContainer" placeholder="/data" size="sm" />
+              <UInput v-model="newVolHost" placeholder="~/BasePodData/myapp/data" size="sm" />
+              <UButton size="sm" icon="i-lucide-plus" :disabled="!newVolContainer || !newVolHost" @click="addVolume">Add</UButton>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -666,19 +706,118 @@ DATABASE_URL=postgres://..."
   margin: 0;
 }
 
-/* overview tab */
-.overview-tab { display: flex; flex-direction: column; gap: 0.75rem; }
-.overview-tab .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem 1.25rem; }
-.rows { list-style: none; padding: 0; margin: 0 0 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; }
-.rows li {
-  display: flex; align-items: center; gap: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  background: var(--ui-bg-muted);
-  border-radius: 0.4rem;
-  font-size: 0.9rem;
+/* overview tab — redesigned */
+.overview-tab { display: flex; flex-direction: column; gap: 1rem; }
+
+/* status banner */
+.status-card {
+  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
 }
-.add-row { display: flex; gap: 0.5rem; align-items: center; }
-.add-row.vol { display: grid; grid-template-columns: 1fr 2fr auto; }
+.status-main { display: flex; align-items: center; gap: 0.85rem; }
+.dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--ui-border);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--ui-border) 30%, transparent);
+}
+.dot[data-state="running"] {
+  background: #16a34a;
+  box-shadow: 0 0 0 4px color-mix(in oklch, #16a34a 25%, transparent);
+}
+.status-label { font-weight: 600; font-size: 0.95rem; }
+.status-sub { font-size: 0.85rem; }
+.status-sub code { background: none; padding: 0; }
+.status-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.chip {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.55rem;
+  background: var(--ui-bg-muted);
+  border: 1px solid var(--ui-border);
+  border-radius: 1rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--ui-text-muted);
+}
+
+/* two-column grid */
+.two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.right-col { display: flex; flex-direction: column; gap: 1rem; }
+
+/* cards */
+.ov-card {
+  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  display: flex; flex-direction: column; gap: 1rem;
+}
+.ov-card.compact { padding: 1rem 1.25rem; gap: 0.75rem; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+.card-head h3 { margin: 0; font-size: 1rem; }
+.card-foot {
+  display: flex; gap: 0.5rem; align-items: center;
+  padding-top: 0.75rem; border-top: 1px solid var(--ui-border);
+}
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; }
+.form-grid .span-2 { grid-column: 1 / -1; }
+.switch-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: var(--ui-bg-muted);
+  border-radius: 0.6rem;
+}
+.switch-label { font-size: 0.85rem; font-weight: 500; }
+
+/* chips list (ports) */
+.chips-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+}
+.chips-list li {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--ui-bg-muted);
+  border-radius: 0.45rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+}
+.chip-x {
+  background: none; border: 0; cursor: pointer;
+  color: var(--ui-text-muted); font-size: 1.05rem; line-height: 1;
+  padding: 0; width: 1rem; height: 1rem;
+}
+.chip-x:hover { color: #dc2626; }
+
+/* volumes list */
+.vol-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.vol-list li {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--ui-bg-muted);
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+}
+.vol-line { display: flex; align-items: center; gap: 0.5rem; min-width: 0; flex: 1; }
+.vol-c, .vol-h { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.82rem; }
+.vol-h { color: var(--ui-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arrow { font-size: 0.85rem; }
+
+.add-inline { display: flex; gap: 0.4rem; align-items: stretch; }
+.add-inline.vol-add { display: grid; grid-template-columns: 1fr 1.6fr auto; }
+.empty { padding: 0.5rem 0; margin: 0; }
+
+@media (max-width: 1000px) {
+  .two-col { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+}
 
 /* versions tab */
 .versions-tab { display: flex; flex-direction: column; gap: 0.75rem; }
