@@ -1,0 +1,42 @@
+# binaries
+/bin/
+/dist/
+basepod-server
+basepod
+
+# data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+/data/
+~/BasePodData/
+
+# env
+.env
+.env.local
+
+# go
+*.test
+*.out
+/vendor/
+
+# web
+/web/node_modules/
+/web/dist/
+/web/.vite/
+/web/pnpm-debug.log*
+/web/npm-debug.log*
+
+# editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# logs
+*.log
+
+# coverage
+coverage.out
+coverage.html
