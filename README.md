@@ -19,9 +19,16 @@ Inspired by [CapRover](https://caprover.com/), which does not run on macOS.
 - Bundled + remote one-click app templates (Postgres, Redis, etc.)
 - Single binary; embedded Vue SPA
 
-## Design
+## Docs
 
-See [`docs/superpowers/specs/2026-05-25-basepod-design.md`](docs/superpowers/specs/2026-05-25-basepod-design.md).
+- [Getting started](docs/getting-started.md)
+- [Architecture](docs/architecture.md)
+- [API reference](docs/api.md)
+- [CLI reference](docs/cli/basepod.md)
+- [Templates](docs/templates.md)
+- [Persistence](docs/persistence.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Design spec](docs/superpowers/specs/2026-05-25-basepod-design.md)
 
 ## Build
 

@@ -7,7 +7,7 @@ DIST := dist
 GOOS ?= darwin
 GOARCH ?= arm64
 
-.PHONY: all build server cli web test lint sqlc goose-up run clean release tidy
+.PHONY: all build server cli web test lint sqlc goose-up run clean release tidy docs
 
 all: build
 
@@ -47,3 +47,7 @@ clean:
 
 release: clean web ## build release artifacts
 	./scripts/build.sh $(VERSION)
+
+docs: cli ## regenerate the CLI markdown reference
+	@mkdir -p docs/cli
+	@./$(BIN)/basepod docs docs/cli
