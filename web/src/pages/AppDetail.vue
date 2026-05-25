@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useAppsStore, type App } from '@/stores/apps'
 import { api, sse } from '@/api/client'
 
@@ -19,6 +19,27 @@ const envRevealed = ref<Record<string, boolean>>({})
 const envRestartOnSave = ref(true)
 const envSaving = ref(false)
 const envSavedMsg = ref('')
+
+interface AppConfig {
+  deploy_strategy: string
+  instances: number
+  memory_mb: number
+  cpu_pct: number
+  healthcheck_path: string
+  internal_only: boolean
+}
+const cfg = ref<AppConfig>({
+  deploy_strategy: 'blue_green',
+  instances: 1,
+  memory_mb: 0,
+  cpu_pct: 0,
+  healthcheck_path: '',
+  internal_only: false,
+})
+const cfgBase = ref<AppConfig>({ ...cfg.value })
+const cfgSaving = ref(false)
+const cfgSavedMsg = ref('')
+const cfgDirty = computed(() => JSON.stringify(cfg.value) !== JSON.stringify(cfgBase.value))
 
 // Git tab state
 interface GitConfig {
@@ -45,9 +66,38 @@ onMounted(load)
 
 async function load() {
   app.value = await apps.get(props.name)
+  cfg.value = {
+    deploy_strategy: app.value.deploy_strategy,
+    instances: app.value.instances,
+    memory_mb: app.value.memory_mb,
+    cpu_pct: app.value.cpu_pct,
+    healthcheck_path: (app.value as any).healthcheck_path ?? '',
+    internal_only: app.value.internal_only,
+  }
+  cfgBase.value = { ...cfg.value }
   const e = await api.get<{ env: Record<string, string> }>(`/api/v1/apps/${props.name}/env`)
   env.value = e.env ?? {}
   await loadGit()
+}
+
+async function saveCfg() {
+  cfgSaving.value = true
+  cfgSavedMsg.value = ''
+  try {
+    await api.patch(`/api/v1/apps/${props.name}`, cfg.value)
+    cfgBase.value = { ...cfg.value }
+    cfgSavedMsg.value = 'saved'
+    setTimeout(() => (cfgSavedMsg.value = ''), 3000)
+    app.value = await apps.get(props.name)
+  } catch (err: any) {
+    cfgSavedMsg.value = 'error: ' + (err?.error ?? 'save failed')
+  } finally {
+    cfgSaving.value = false
+  }
+}
+
+function resetCfg() {
+  cfg.value = { ...cfgBase.value }
 }
 
 async function loadGit() {
@@ -233,19 +283,52 @@ function copy(text: string) {
       ]"
     />
 
-    <section v-if="tab === 'overview'" class="section">
+    <section v-if="tab === 'overview'" class="section overview-tab">
+      <h3 class="section-title">Configuration</h3>
+      <div class="grid">
+        <UFormField label="Deploy strategy" help="blue/green = zero downtime, ~2× RAM during swap. stop/start = brief downtime.">
+          <USelect
+            v-model="cfg.deploy_strategy"
+            :items="[{ label: 'blue/green', value: 'blue_green' }, { label: 'stop/start', value: 'stop_start' }]"
+          />
+        </UFormField>
+        <UFormField label="Instances" help="v1 records the desired count; multi-replica orchestration not yet implemented.">
+          <UInput v-model.number="cfg.instances" type="number" min="1" />
+        </UFormField>
+        <UFormField label="Memory limit (MB)" help="0 = unlimited">
+          <UInput v-model.number="cfg.memory_mb" type="number" min="0" />
+        </UFormField>
+        <UFormField label="CPU limit (%)" help="0 = unlimited; 100 = one core">
+          <UInput v-model.number="cfg.cpu_pct" type="number" min="0" max="800" />
+        </UFormField>
+        <UFormField label="Healthcheck path" help="HTTP path returning 2xx when healthy. Empty = use container's HEALTHCHECK.">
+          <UInput v-model="cfg.healthcheck_path" placeholder="/healthz" />
+        </UFormField>
+        <UFormField label="Internal only" help="If on, the app is excluded from Caddy routing — reachable only from other containers on the basepod network.">
+          <USwitch v-model="cfg.internal_only" />
+        </UFormField>
+      </div>
+      <div class="actions-row">
+        <UButton :loading="cfgSaving" :disabled="!cfgDirty" @click="saveCfg">Save</UButton>
+        <UButton v-if="cfgDirty" color="neutral" variant="ghost" @click="resetCfg">Reset</UButton>
+        <div class="grow" />
+        <span v-if="cfgSavedMsg" class="muted small">{{ cfgSavedMsg }}</span>
+      </div>
+
+      <hr class="sep" />
+      <h4 class="sub">Read-only</h4>
       <dl class="kv">
-        <dt>Instances</dt><dd>{{ app.instances }}</dd>
-        <dt>Strategy</dt><dd>{{ app.deploy_strategy }}</dd>
-        <dt>Internal only</dt><dd>{{ app.internal_only ? 'yes' : 'no' }}</dd>
-        <dt>Ports</dt><dd>{{ app.ports.join(', ') || '—' }}</dd>
+        <dt>Image</dt><dd>{{ app.image_repo || '—' }}</dd>
+        <dt>Current version</dt><dd>{{ app.current_version || 'not deployed' }}</dd>
+        <dt>Ports</dt><dd>{{ app.ports.join(', ') || '—' }} <span class="muted small">(set at create time)</span></dd>
         <dt>Volumes</dt>
         <dd>
-          <ul>
+          <ul v-if="app.volumes && app.volumes.length">
             <li v-for="v in app.volumes" :key="v.container">
-              {{ v.container }} ← {{ v.host || v.named_volume }}
+              <code>{{ v.container }}</code> ← {{ v.host || v.named_volume }}
             </li>
           </ul>
+          <span v-else class="muted">none</span>
         </dd>
       </dl>
     </section>
@@ -464,6 +547,10 @@ DATABASE_URL=postgres://..."
   font-size: 0.85rem;
   margin: 0;
 }
+
+/* overview tab */
+.overview-tab { display: flex; flex-direction: column; gap: 0.75rem; }
+.overview-tab .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem 1.25rem; }
 
 /* env tab */
 .env-tab { display: flex; flex-direction: column; gap: 0.75rem; }

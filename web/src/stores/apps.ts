@@ -21,7 +21,11 @@ export interface App {
   current_version: string
   instances: number
   deploy_strategy: string
+  healthcheck_path?: string
+  healthcheck_cmd?: string
   internal_only: boolean
+  memory_mb: number
+  cpu_pct: number
   ports: number[]
   volumes: AppVolume[]
   domains: AppDomain[]
