@@ -6,6 +6,7 @@ const root = ref('')
 const email = ref('')
 const provider = ref('')
 const token = ref('')
+const adminSub = ref('bp')
 const saving = ref(false)
 
 onMounted(async () => {
@@ -13,6 +14,7 @@ onMounted(async () => {
   root.value = r.settings.root_domain ?? ''
   email.value = r.settings.acme_email ?? ''
   provider.value = r.settings.dns_provider ?? ''
+  adminSub.value = r.settings.admin_subdomain ?? 'bp'
 })
 
 async function save() {
@@ -22,6 +24,7 @@ async function save() {
       root_domain: root.value,
       acme_email: email.value,
       dns_provider: provider.value,
+      admin_subdomain: adminSub.value,
     }
     if (token.value) payload.dns_token = token.value
     await api.put('/api/v1/settings', payload)
@@ -39,6 +42,9 @@ async function save() {
       <h2>Domains & TLS</h2>
       <UFormField label="Root domain" help="Apps get <app>.<root> automatically.">
         <UInput v-model="root" placeholder="example.com" />
+      </UFormField>
+      <UFormField label="Admin subdomain" help="Reserved for this dashboard, e.g. bp.<root>. Cannot be used as an app name.">
+        <UInput v-model="adminSub" placeholder="bp" />
       </UFormField>
       <UFormField label="ACME email" help="Used by Let's Encrypt to notify about cert problems.">
         <UInput v-model="email" type="email" />

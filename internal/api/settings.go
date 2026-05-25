@@ -8,10 +8,11 @@ import (
 )
 
 var allowedSettings = map[string]bool{
-	"root_domain":  true,
-	"acme_email":   true,
-	"dns_provider": true,
-	"dns_token":    true,
+	"root_domain":      true,
+	"acme_email":       true,
+	"dns_provider":     true,
+	"dns_token":        true,
+	"admin_subdomain":  true, // e.g. "bp" → bp.<root_domain>
 }
 
 func getSettingsHandler(d Deps) http.HandlerFunc {

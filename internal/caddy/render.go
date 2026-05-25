@@ -20,6 +20,10 @@ type RenderInput struct {
 	DNSProvider  string // e.g. "cloudflare" — empty disables DNS-01
 	DNSToken     string
 	WildcardCert bool // true when DNSProvider is set; covers *.RootDomain
+	// AdminSubdomain (e.g. "bp") + RootDomain produces "bp.example.com",
+	// reverse-proxied to AdminUpstream. Empty AdminSubdomain disables this.
+	AdminSubdomain string
+	AdminUpstream  string // e.g. "host.containers.internal:8080"
 }
 
 // Render builds a full Caddy v2 JSON config from the supplied apps.
@@ -31,6 +35,34 @@ type RenderInput struct {
 func Render(ctx context.Context, in RenderInput) ([]byte, error) {
 	routes := []map[string]any{}
 	customServers := map[string]map[string]any{}
+
+	// Reserved admin route — must come first so it wins over any wildcard app.
+	if in.AdminSubdomain != "" && in.RootDomain != "" && in.AdminUpstream != "" {
+		adminHost := in.AdminSubdomain + "." + in.RootDomain
+		routes = append(routes, map[string]any{
+			"match": []map[string]any{
+				{"host": []string{adminHost}},
+			},
+			"handle": []map[string]any{
+				{
+					"handler": "subroute",
+					"routes": []map[string]any{
+						{
+							"handle": []map[string]any{
+								{
+									"handler": "reverse_proxy",
+									"upstreams": []map[string]any{
+										{"dial": in.AdminUpstream},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"terminal": true,
+		})
+	}
 
 	for _, app := range in.Apps {
 		if app.Port == 0 {

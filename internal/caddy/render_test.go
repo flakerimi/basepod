@@ -32,6 +32,31 @@ func TestRenderAutoSubdomainAndCustom(t *testing.T) {
 	}
 }
 
+func TestRenderAdminSubdomain(t *testing.T) {
+	cfg, err := Render(context.Background(), RenderInput{
+		RootDomain:     "example.com",
+		ACMEEmail:      "ops@example.com",
+		AdminSubdomain: "bp",
+		AdminUpstream:  "host.containers.internal:8080",
+		Apps:           []AppRoute{{Name: "app1", Port: 3000}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(cfg)
+	for _, want := range []string{"bp.example.com", "host.containers.internal:8080", "app1.example.com"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("missing %q in %s", want, s)
+		}
+	}
+	// admin route should appear BEFORE app routes (so wildcard "bp" name can't be hijacked).
+	adminIdx := strings.Index(s, "bp.example.com")
+	appIdx := strings.Index(s, "app1.example.com")
+	if adminIdx > appIdx {
+		t.Fatalf("admin route should come first; admin=%d app=%d", adminIdx, appIdx)
+	}
+}
+
 func TestRenderWildcard(t *testing.T) {
 	in := RenderInput{
 		RootDomain:   "example.com",

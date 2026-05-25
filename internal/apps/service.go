@@ -81,6 +81,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*App, error) {
 	if !config.ValidName(in.Name) {
 		return nil, fmt.Errorf("invalid name %q", in.Name)
 	}
+	adminSub, _ := s.q.GetSetting(ctx, "admin_subdomain")
+	if adminSub == "" {
+		adminSub = "bp"
+	}
+	if in.Name == adminSub {
+		return nil, fmt.Errorf("app name %q is reserved for the admin UI; change the admin subdomain or pick another name", in.Name)
+	}
 	if _, err := s.q.GetAppByName(ctx, in.Name); err == nil {
 		return nil, ErrNameInUse
 	} else if !errors.Is(err, sql.ErrNoRows) {
