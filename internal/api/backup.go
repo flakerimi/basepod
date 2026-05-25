@@ -17,38 +17,40 @@ import (
 
 // Backup layout (matches the established BasePod backup format):
 //
-//   basepod-backup-YYYYMMDD-HHMMSS/
-//   ├── backup.json             - manifest
-//   ├── database/state.db
-//   ├── config/
-//   │   ├── caddy.json          - rendered Caddy admin snapshot
-//   │   └── basepod.yaml        - server config (sans secrets)
-//   ├── volumes/<name>.tar      - one tar per Podman named volume in use
-//   └── data/<app>/...          - bind-mount host data tree
+//   backup.json                   - manifest at tar root, no outer dir
+//   database/state.db
+//   config/caddy.json             - rendered Caddy admin snapshot
+//   config/basepod.yaml           - server config (sans secrets)
+//   volumes/<name>.tar            - one tar per Podman named volume in use
+//   apps/<app>/...                - bind-mount host data tree per app
+//   builds/<app>/<version>/source.tar.gz  - retained deploy source archives
 //
 // The manifest enumerates what's inside so a restore tool can be selective.
 
+type backupContents struct {
+	Database bool     `json:"database"`
+	Config   bool     `json:"config"`
+	Volumes  []string `json:"volumes"`
+	Apps     []string `json:"apps"`
+	Builds   []string `json:"builds"`
+}
+
 type backupManifest struct {
-	ID          string   `json:"id"`
-	CreatedAt   string   `json:"created_at"`
-	Version     string   `json:"basepod_version"`
-	Database    bool     `json:"database"`
-	Config      bool     `json:"config"`
-	Volumes     []string `json:"volumes"`
-	Apps        []string `json:"apps"`
-	Compression string   `json:"compression"`
+	ID          string          `json:"id"`
+	CreatedAt   string          `json:"created_at"`
+	Version     string          `json:"basepod_version"`
+	Compression string          `json:"compression"`
+	Contents    backupContents  `json:"contents"`
 }
 
 func backupHandler(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := time.Now().UTC().Format("20060102-150405")
-		root := "basepod-backup-" + id
-		name := root + ".tar.gz"
+		name := "basepod-backup-" + id + ".tar.gz"
 
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Header().Set("Content-Disposition", "attachment; filename="+name)
 
-		// Collect named volumes referenced by any app.
 		apps, _ := d.Apps.List(r.Context())
 		appNames := make([]string, 0, len(apps))
 		volSet := map[string]struct{}{}
@@ -65,15 +67,28 @@ func backupHandler(d Deps) http.HandlerFunc {
 			volList = append(volList, v)
 		}
 
+		buildsRoot := filepath.Join(d.Cfg.DataDir, "_basepod", "builds")
+		buildEntries := []string{}
+		if entries, err := os.ReadDir(buildsRoot); err == nil {
+			for _, e := range entries {
+				if e.IsDir() {
+					buildEntries = append(buildEntries, e.Name())
+				}
+			}
+		}
+
 		manifest := backupManifest{
 			ID:          id,
 			CreatedAt:   time.Now().UTC().Format(time.RFC3339),
 			Version:     d.Version,
-			Database:    true,
-			Config:      true,
-			Volumes:     volList,
-			Apps:        appNames,
 			Compression: "gzip",
+			Contents: backupContents{
+				Database: true,
+				Config:   true,
+				Volumes:  volList,
+				Apps:     appNames,
+				Builds:   buildEntries,
+			},
 		}
 
 		gz := gzip.NewWriter(w)
@@ -81,38 +96,51 @@ func backupHandler(d Deps) http.HandlerFunc {
 		tw := tar.NewWriter(gz)
 		defer tw.Close()
 
-		// manifest
+		// manifest at tar root (no outer dir)
 		mb, _ := json.MarshalIndent(manifest, "", "  ")
-		_ = addBytes(tw, root+"/backup.json", mb)
+		_ = addBytes(tw, "backup.json", mb)
 
-		// database
+		// database/
 		_, _ = d.DB.ExecContext(r.Context(), "PRAGMA wal_checkpoint(FULL);")
-		if err := addFile(tw, d.Cfg.StatePath(), root+"/database/state.db"); err != nil {
+		if err := addFile(tw, d.Cfg.StatePath(), "database/state.db"); err != nil {
 			d.Log.Error("backup state.db", "err", err)
 			return
 		}
 
-		// config — caddy snapshot + sanitized server config
+		// config/
 		if d.Caddy != nil {
 			if cfg, err := d.Caddy.Get(r.Context()); err == nil {
-				_ = addBytes(tw, root+"/config/caddy.json", cfg)
+				_ = addBytes(tw, "config/caddy.json", cfg)
 			}
 		}
 		if cfgYAML, err := os.ReadFile(d.Cfg.ConfigPath()); err == nil {
-			_ = addBytes(tw, root+"/config/basepod.yaml", cfgYAML)
+			_ = addBytes(tw, "config/basepod.yaml", cfgYAML)
 		}
 
-		// volumes — podman volume export, one tar per named volume
+		// volumes/
 		if d.Podman != nil {
 			for _, v := range volList {
-				if err := writeVolumeTar(r.Context(), tw, d.Podman, v, root+"/volumes/"+v+".tar"); err != nil {
+				if err := writeVolumeTar(r.Context(), tw, d.Podman, v, "volumes/"+v+".tar"); err != nil {
 					d.Log.Warn("backup volume failed", "vol", v, "err", err)
 				}
 			}
 		}
 
-		// data — bind-mount host paths under DataDir (excluding _basepod)
-		_ = addDir(tw, d.Cfg.DataDir, root+"/data", filepath.Join(d.Cfg.DataDir, "_basepod"))
+		// apps/<name>/...  — bind-mount data per app
+		for _, a := range apps {
+			for _, vol := range a.Volumes {
+				if vol.Host == "" {
+					continue
+				}
+				prefix := filepath.Join("apps", a.Name, filepath.Base(vol.Container))
+				_ = addDir(tw, vol.Host, prefix, "")
+			}
+		}
+
+		// builds/
+		if len(buildEntries) > 0 {
+			_ = addDir(tw, buildsRoot, "builds", "")
+		}
 	}
 }
 

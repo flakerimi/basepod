@@ -1,6 +1,7 @@
 package api
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -151,6 +152,9 @@ func handleTarballDeploy(w http.ResponseWriter, r *http.Request, d Deps, a *apps
 			return
 		}
 		d.Events.Publish(topic, "built", map[string]any{"tag": res.Tag, "version": res.Version})
+
+		// Retain source for backup/rollback. Keep last 5 per app.
+		retainSource(d, a.Name, res.Version, tarPath)
 		err = d.Orchestrator.Deploy(ctx, deploy.Request{
 			App:      a,
 			ImageTag: res.Tag,
@@ -183,4 +187,70 @@ func updateVersionStatus(ctx context.Context, d Deps, versionID string, err erro
 
 func nowVersion() string {
 	return fmt.Sprintf("v%d", time.Now().UnixNano())
+}
+
+// retainSource gzips the upload tar into _basepod/builds/<app>/<version>/source.tar.gz
+// and prunes older builds so we keep at most 5 per app.
+func retainSource(d Deps, appName, version, srcPath string) {
+	dst := filepath.Join(d.Cfg.DataDir, "_basepod", "builds", appName, version)
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		d.Log.Warn("retainSource mkdir", "err", err)
+		return
+	}
+	in, err := os.Open(srcPath)
+	if err != nil {
+		d.Log.Warn("retainSource open", "err", err)
+		return
+	}
+	defer in.Close()
+	out, err := os.Create(filepath.Join(dst, "source.tar.gz"))
+	if err != nil {
+		d.Log.Warn("retainSource create", "err", err)
+		return
+	}
+	defer out.Close()
+	gz := gzip.NewWriter(out)
+	defer gz.Close()
+	if _, err := io.Copy(gz, in); err != nil {
+		d.Log.Warn("retainSource copy", "err", err)
+		return
+	}
+	pruneBuilds(d.Cfg.DataDir, appName, 5)
+}
+
+func pruneBuilds(dataDir, appName string, keep int) {
+	root := filepath.Join(dataDir, "_basepod", "builds", appName)
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return
+	}
+	type item struct {
+		name string
+		mod  time.Time
+	}
+	items := make([]item, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		items = append(items, item{e.Name(), info.ModTime()})
+	}
+	if len(items) <= keep {
+		return
+	}
+	// oldest first
+	for i := 0; i < len(items); i++ {
+		for j := i + 1; j < len(items); j++ {
+			if items[j].mod.Before(items[i].mod) {
+				items[i], items[j] = items[j], items[i]
+			}
+		}
+	}
+	for _, it := range items[:len(items)-keep] {
+		_ = os.RemoveAll(filepath.Join(root, it.name))
+	}
 }
