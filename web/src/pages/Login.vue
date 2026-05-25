@@ -26,7 +26,7 @@ async function submit() {
 <template>
   <div class="wrap">
     <div class="card">
-      <div class="logo"><Logo height="44" /></div>
+      <div class="logo"><Logo :height="40" /></div>
       <p class="sub">Sign in to your BasePod server</p>
       <form @submit.prevent="submit" class="form">
         <UFormField label="Username">

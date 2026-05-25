@@ -7,12 +7,14 @@ import Logo from '@/components/Logo.vue'
 const router = useRouter()
 const auth = useAuthStore()
 
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: 'i-lucide-home' },
-  { to: '/apps', label: 'Apps', icon: 'i-lucide-boxes' },
-  { to: '/templates', label: 'Templates', icon: 'i-lucide-shapes' },
-  { to: '/settings', label: 'Settings', icon: 'i-lucide-settings' },
-]
+const items = computed(() => [
+  [
+    { label: 'Dashboard', icon: 'i-lucide-layout-dashboard', to: '/' },
+    { label: 'Apps',       icon: 'i-lucide-boxes',           to: '/apps' },
+    { label: 'Templates',  icon: 'i-lucide-shapes',          to: '/templates' },
+    { label: 'Settings',   icon: 'i-lucide-settings',        to: '/settings' },
+  ],
+])
 
 const initials = computed(() => (auth.user?.username ?? '?').slice(0, 2).toUpperCase())
 
@@ -25,15 +27,15 @@ async function logout() {
 <template>
   <div class="shell">
     <aside class="side">
-      <div class="brand"><Logo height="28" /></div>
-      <nav class="nav">
-        <RouterLink v-for="n in navItems" :key="n.to" :to="n.to" class="nav-item" active-class="nav-item-active">
-          <UIcon :name="n.icon" />
-          <span>{{ n.label }}</span>
-        </RouterLink>
-      </nav>
+      <div class="brand"><Logo :height="26" /></div>
+      <UNavigationMenu
+        orientation="vertical"
+        :items="items"
+        class="nav"
+      />
+      <div class="spacer" />
       <div class="user">
-        <UAvatar :alt="initials" />
+        <UAvatar :alt="initials" size="sm" />
         <div class="user-text">
           <div class="user-name">{{ auth.user?.username }}</div>
           <button class="logout" @click="logout">log out</button>
@@ -51,43 +53,30 @@ async function logout() {
   display: grid;
   grid-template-columns: 240px 1fr;
   min-height: 100vh;
+  background: var(--ui-bg);
 }
 .side {
   display: flex;
   flex-direction: column;
-  background: var(--ui-bg-elevated);
+  background: var(--ui-bg-muted);
   border-right: 1px solid var(--ui-border);
-  padding: 1.25rem 1rem;
-  gap: 1rem;
+  padding: 1rem 0.75rem;
+  gap: 0.75rem;
+  overflow: hidden;
 }
-.brand {
-  padding: 0.5rem 0.25rem 1.5rem;
-}
-.nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-}
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: 0.5rem;
-  color: var(--ui-text-muted);
-  text-decoration: none;
-  font-size: 0.92rem;
-}
-.nav-item:hover { background: var(--ui-bg); color: var(--ui-text); }
-.nav-item-active { background: var(--color-primary-500); color: white !important; }
+.brand { padding: 0.5rem 0.5rem 1rem; }
+.nav { width: 100%; }
+.spacer { flex: 1; }
 .user {
   display: flex; gap: 0.6rem; align-items: center;
-  padding: 0.6rem 0.4rem; border-top: 1px solid var(--ui-border);
+  padding: 0.75rem 0.5rem 0.25rem; border-top: 1px solid var(--ui-border);
 }
-.user-text { display: flex; flex-direction: column; }
-.user-name { font-size: 0.9rem; }
-.logout { background: none; border: 0; color: var(--ui-text-muted); font-size: 0.75rem; text-align: left; padding: 0; cursor: pointer; }
-.logout:hover { color: var(--color-primary-500); }
-.main { padding: 2rem; overflow-y: auto; }
+.user-text { display: flex; flex-direction: column; line-height: 1.2; }
+.user-name { font-size: 0.9rem; color: var(--ui-text-highlighted); }
+.logout {
+  background: none; border: 0; color: var(--ui-text-muted);
+  font-size: 0.75rem; text-align: left; padding: 0; cursor: pointer;
+}
+.logout:hover { color: var(--ui-primary); }
+.main { padding: 2rem 2.5rem; overflow-y: auto; }
 </style>
