@@ -1,0 +1,26 @@
+@import "@nuxt/ui";
+
+@theme {
+  --color-primary-50:  oklch(0.97 0.04 215);
+  --color-primary-100: oklch(0.94 0.08 215);
+  --color-primary-200: oklch(0.89 0.13 215);
+  --color-primary-300: oklch(0.83 0.16 215);
+  --color-primary-400: oklch(0.77 0.18 215);
+  --color-primary-500: #00C0E8;
+  --color-primary-600: oklch(0.62 0.18 215);
+  --color-primary-700: oklch(0.52 0.16 215);
+  --color-primary-800: oklch(0.42 0.13 215);
+  --color-primary-900: oklch(0.32 0.10 215);
+  --color-primary-950: oklch(0.22 0.07 215);
+}
+
+html, body, #app {
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  margin: 0;
+}

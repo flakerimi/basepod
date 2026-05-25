@@ -1,20 +1,15 @@
 package api
 
 import (
-	"embed"
 	"io/fs"
 	"net/http"
 	"strings"
+
+	"github.com/flakerimi/basepod/web"
 )
 
-// spaFS is filled in once the Vue build artifact exists. For phase 1 we ship a
-// placeholder so the binary still serves a sensible root page.
-//
-//go:embed placeholder/*
-var spaFS embed.FS
-
 func spaHandler(d Deps) http.Handler {
-	sub, err := fs.Sub(spaFS, "placeholder")
+	sub, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "SPA assets missing", http.StatusInternalServerError)
