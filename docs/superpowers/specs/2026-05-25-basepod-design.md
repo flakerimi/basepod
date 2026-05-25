@@ -353,8 +353,11 @@ Idempotent. Re-running is safe.
 ## 12. Frontend stack
 
 - Vue 3 + Vite + TypeScript + Pinia + Vue Router.
-- Nuxt UI as the component library (non-green palette; primary color
-  chosen during initial design pass).
+- Nuxt UI as the component library.
+- **Brand color: `#00C0E8`** (cyan). Nuxt UI primary set to a custom
+  palette derived from this hex (configured via `app.config.ts`
+  `ui.colors.primary`).
+- Logo: `assets/logo.svg` (wordmark, single-color, fill `#00C0E8`).
 - REST via `fetch` wrapper with token/cookie injection.
 - SSE via `EventSource` for logs and live events.
 - Built artifact -> `web/dist/` -> `go:embed` into binary.
@@ -416,7 +419,6 @@ Same binary works against any BasePod server via `--server` flag.
 
 - macOS launchd unit shape for `basepod-server` (background service).
 - Whether to ship a `.pkg` installer or `brew` formula or both.
-- Default primary color for Nuxt UI (must not be green).
 - Whether to support multi-arch builds (amd64+arm64) on initial build,
   or arm64-only since target is Apple Silicon Macs.
 
