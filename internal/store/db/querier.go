@@ -42,6 +42,8 @@ type Querier interface {
 	ListAppVersions(ctx context.Context, appID string) ([]AppVersion, error)
 	ListAppVolumes(ctx context.Context, appID string) ([]AppVolume, error)
 	ListApps(ctx context.Context) ([]App, error)
+	ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]AuditLog, error)
+	ListAuditLogForTarget(ctx context.Context, arg ListAuditLogForTargetParams) ([]AuditLog, error)
 	ListSettings(ctx context.Context) ([]Setting, error)
 	ListTemplatesInstalled(ctx context.Context) ([]TemplatesInstalled, error)
 	ListTokensByUser(ctx context.Context, userID string) ([]ListTokensByUserRow, error)

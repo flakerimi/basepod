@@ -24,6 +24,11 @@ type RenderInput struct {
 	// reverse-proxied to AdminUpstream. Empty AdminSubdomain disables this.
 	AdminSubdomain string
 	AdminUpstream  string // e.g. "host.containers.internal:8080"
+	// OnDemandTLS enables Caddy's on-demand TLS — certs are issued lazily on
+	// first request, no need to pre-declare custom domains. The "ask" URL is
+	// the admin server's check endpoint that confirms the host is registered.
+	OnDemandTLS  bool
+	OnDemandAsk  string // e.g. "http://host.containers.internal:8080/api/v1/caddy/check"
 }
 
 // Render builds a full Caddy v2 JSON config from the supplied apps.
@@ -108,6 +113,13 @@ func Render(ctx context.Context, in RenderInput) ([]byte, error) {
 		server["tls_connection_policies"] = []map[string]any{{}}
 	}
 
+	if in.OnDemandTLS {
+		odPolicy := map[string]any{
+			"on_demand": true,
+		}
+		server["tls_connection_policies"] = []map[string]any{odPolicy}
+	}
+
 	cfg := map[string]any{
 		"admin": map[string]any{
 			"listen": "0.0.0.0:2019",
@@ -153,14 +165,17 @@ func reverseProxyRoute(host, container string, port int) map[string]any {
 
 func tlsApp(in RenderInput, policies []map[string]any) map[string]any {
 	tls := map[string]any{}
-	if in.ACMEEmail != "" {
-		tls["automation"] = map[string]any{
-			"policies": policies,
+	automation := map[string]any{}
+	if len(policies) > 0 {
+		automation["policies"] = policies
+	}
+	if in.OnDemandTLS && in.OnDemandAsk != "" {
+		automation["on_demand"] = map[string]any{
+			"ask": in.OnDemandAsk,
 		}
-	} else if len(policies) > 0 {
-		tls["automation"] = map[string]any{
-			"policies": policies,
-		}
+	}
+	if len(automation) > 0 {
+		tls["automation"] = automation
 	}
 	return tls
 }

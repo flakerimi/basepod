@@ -65,6 +65,7 @@ func createAppHandler(d Deps) http.HandlerFunc {
 			}
 			return
 		}
+		audit(r.Context(), d, "app.create", a.Name, map[string]any{"image": a.ImageRepo})
 		writeJSON(w, 201, map[string]any{"app": a})
 	}
 }
@@ -251,6 +252,44 @@ func removeDomainHandler(d Deps) http.HandlerFunc {
 			return
 		}
 		if err := d.Apps.RemoveDomain(r.Context(), a.ID, dom); err != nil {
+			writeErr(w, 500, "server_error", err.Error())
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true})
+	}
+}
+
+func startAppHandler(d Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		if _, err := d.Apps.GetByName(r.Context(), name); err != nil {
+			writeErr(w, 404, "not_found", "app not found")
+			return
+		}
+		if d.Podman == nil {
+			writeErr(w, 503, "podman_unavailable", "podman not connected")
+			return
+		}
+		if err := d.Podman.ContainerStart(r.Context(), name); err != nil {
+			writeErr(w, 500, "server_error", err.Error())
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true})
+	}
+}
+
+func stopAppHandler(d Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		if _, err := d.Apps.GetByName(r.Context(), name); err != nil {
+			writeErr(w, 404, "not_found", "app not found")
+			return
+		}
+		if d.Podman == nil {
+			writeErr(w, 503, "podman_unavailable", "podman not connected")
+			return
+		}
+		if err := d.Podman.ContainerStop(r.Context(), name, 10); err != nil {
 			writeErr(w, 500, "server_error", err.Error())
 			return
 		}

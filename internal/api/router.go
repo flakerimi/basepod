@@ -40,8 +40,11 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(middleware.Recoverer)
 
 	r.Get("/api/v1/health", healthHandler(d))
+	r.Get("/api/v1/caddy/check", caddyCheckHandler(d))
 
 	r.Route("/api/v1/auth", func(r chi.Router) {
+		r.Get("/status", authStatusHandler(d))
+		r.Post("/setup", setupHandler(d))
 		r.Post("/login", loginHandler(d))
 		r.With(d.Auth.Middleware).Post("/logout", logoutHandler(d))
 		r.With(d.Auth.Middleware).Get("/me", meHandler(d))
@@ -57,6 +60,8 @@ func NewRouter(d Deps) http.Handler {
 		r.Patch("/{name}", updateAppHandler(d))
 		r.Delete("/{name}", deleteAppHandler(d))
 		r.Post("/{name}/deploy", deployHandler(d))
+		r.Post("/{name}/start", startAppHandler(d))
+		r.Post("/{name}/stop", stopAppHandler(d))
 		r.Post("/{name}/restart", restartAppHandler(d))
 		r.Post("/{name}/rollback", rollbackHandler(d))
 		r.Get("/{name}/logs", logsSSEHandler(d))
@@ -72,6 +77,13 @@ func NewRouter(d Deps) http.Handler {
 
 	r.With(d.Auth.Middleware).Get("/api/v1/settings", getSettingsHandler(d))
 	r.With(d.Auth.Middleware).Put("/api/v1/settings", putSettingsHandler(d))
+
+	r.With(d.Auth.Middleware).Get("/api/v1/system/info", systemInfoHandler(d))
+	r.With(d.Auth.Middleware).Get("/api/v1/system/storage", systemStorageHandler(d))
+	r.With(d.Auth.Middleware).Get("/api/v1/system/processes", systemProcessesHandler(d))
+	r.With(d.Auth.Middleware).Post("/api/v1/system/prune", systemPruneHandler(d))
+
+	r.With(d.Auth.Middleware).Get("/api/v1/audit", auditLogHandler(d))
 
 	r.With(d.Auth.Middleware).Get("/api/v1/events", eventsSSEHandler(d))
 	r.With(d.Auth.Middleware).Post("/api/v1/backup", backupHandler(d))

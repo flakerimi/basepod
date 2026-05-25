@@ -11,6 +11,41 @@ import (
 	"github.com/flakerimi/basepod/internal/auth"
 )
 
+func authStatusHandler(d Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		n, _ := d.Queries.CountUsers(r.Context())
+		writeJSON(w, 200, map[string]any{"setup_complete": n > 0})
+	}
+}
+
+func setupHandler(d Deps) http.HandlerFunc {
+	type req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		n, err := d.Queries.CountUsers(r.Context())
+		if err != nil {
+			writeErr(w, 500, "server_error", err.Error())
+			return
+		}
+		if n > 0 {
+			writeErr(w, 409, "setup_complete", "setup already completed")
+			return
+		}
+		var body req
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || len(body.Password) < 8 {
+			writeErr(w, 400, "bad_request", "username and password (min 8 chars) required")
+			return
+		}
+		if _, err := d.Auth.EnsureAdmin(r.Context(), body.Username, body.Password); err != nil {
+			writeErr(w, 500, "server_error", err.Error())
+			return
+		}
+		writeJSON(w, 201, map[string]any{"ok": true})
+	}
+}
+
 func loginHandler(d Deps) http.HandlerFunc {
 	type req struct {
 		Username string `json:"username"`
