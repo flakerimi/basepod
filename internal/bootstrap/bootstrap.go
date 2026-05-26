@@ -18,15 +18,17 @@ import (
 )
 
 const (
-	NetworkName       = "basepod"
-	CaddyContainer    = "basepod-caddy"
-	CaddyImage        = "docker.io/library/caddy:2-alpine"
-	CaddyDataVolume   = "basepod-caddy-data"
-	CaddyConfigVolume = "basepod-caddy-config"
+	NetworkName     = "basepod"
+	CaddyContainer  = "basepod-caddy"
+	CaddyImage      = "docker.io/library/caddy:2-alpine"
+	CaddyDataVolume = "basepod-caddy-data"
+	VMDataDir       = "/BasePodData"
 )
 
+var defaultPodmanMachineMounts = []string{"/Users", "/private", "/var/folders"}
+
 type Result struct {
-	PodmanSocket  string
+	PodmanSocket   string
 	CaddyConfigDir string // host directory bind-mounted into the Caddy container at /etc/caddy
 }
 
@@ -38,7 +40,7 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger) (Result, erro
 	if _, err := exec.LookPath("podman"); err != nil {
 		return Result{}, fmt.Errorf("podman not found in PATH; install via 'brew install podman'")
 	}
-	if err := ensureMachine(ctx, log); err != nil {
+	if err := ensureMachine(ctx, cfg, log); err != nil {
 		return Result{}, err
 	}
 	pc, err := podman.New(cfg.PodmanSocket)
@@ -62,7 +64,7 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger) (Result, erro
 	return Result{PodmanSocket: pc.SocketURI(), CaddyConfigDir: configDir}, nil
 }
 
-func ensureMachine(ctx context.Context, log *slog.Logger) error {
+func ensureMachine(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	out, err := exec.CommandContext(ctx, "podman", "machine", "list", "--format", "{{.Name}} {{.Running}}").Output()
 	if err != nil {
 		return fmt.Errorf("podman machine list: %w", err)
@@ -70,7 +72,12 @@ func ensureMachine(ctx context.Context, log *slog.Logger) error {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(lines) == 0 || lines[0] == "" {
 		log.Info("bootstrap: initializing podman machine")
-		if err := exec.CommandContext(ctx, "podman", "machine", "init").Run(); err != nil {
+		dataDir, err := filepath.Abs(cfg.DataDir)
+		if err != nil {
+			return fmt.Errorf("resolve data dir: %w", err)
+		}
+		volumeSpec := dataDir + ":" + VMDataDir
+		if err := exec.CommandContext(ctx, "podman", "machine", "init", "--volume", volumeSpec).Run(); err != nil {
 			return fmt.Errorf("podman machine init: %w", err)
 		}
 	}
@@ -85,6 +92,11 @@ func ensureMachine(ctx context.Context, log *slog.Logger) error {
 		log.Info("bootstrap: starting podman machine")
 		if err := exec.CommandContext(ctx, "podman", "machine", "start").Run(); err != nil && !strings.Contains(err.Error(), "already") {
 			return fmt.Errorf("podman machine start: %w", err)
+		}
+	}
+	if !pathWithinAny(cfg.DataDir, defaultPodmanMachineMounts) {
+		if err := exec.CommandContext(ctx, "podman", "machine", "ssh", "mountpoint", "-q", VMDataDir).Run(); err != nil {
+			return fmt.Errorf("basepod data dir %s is not mounted in the podman machine; initialize the machine with 'podman machine init --volume %s:%s'", cfg.DataDir, cfg.DataDir, VMDataDir)
 		}
 	}
 	return nil
@@ -155,32 +167,43 @@ func ensureCaddy(ctx context.Context, pc *podman.Client, cfg config.Config, log 
 		}
 	}
 
+	vmConfigDir, err := vmPathForDataDir(cfg.DataDir, hostConfigDir)
+	if err != nil {
+		return "", err
+	}
+
 	exists, err := pc.ContainerExists(ctx, CaddyContainer)
 	if err != nil {
 		return "", err
 	}
 	if exists {
 		ci, err := pc.ContainerInspect(ctx, CaddyContainer)
-		if err == nil && !ci.State.Running {
-			log.Info("bootstrap: starting existing caddy container")
-			if err := pc.ContainerStart(ctx, CaddyContainer); err != nil {
-				return "", err
-			}
+		if err != nil {
+			return "", fmt.Errorf("inspect caddy: %w", err)
 		}
-		return hostConfigDir, nil
+		if caddyContainerNeedsRecreate(ci, vmConfigDir) {
+			log.Warn("bootstrap: recreating legacy caddy container without Unix-socket admin")
+			if ci.State.Running {
+				_ = pc.ContainerStop(ctx, CaddyContainer, 10)
+			}
+			if err := pc.ContainerRemove(ctx, CaddyContainer, true); err != nil {
+				return "", fmt.Errorf("remove legacy caddy container: %w", err)
+			}
+		} else {
+			if !ci.State.Running {
+				log.Info("bootstrap: starting existing caddy container")
+				if err := pc.ContainerStart(ctx, CaddyContainer); err != nil {
+					return "", err
+				}
+			}
+			return hostConfigDir, nil
+		}
 	}
 
 	log.Info("bootstrap: pulling caddy image", "ref", CaddyImage)
 	if err := pc.ImagePull(ctx, CaddyImage); err != nil {
 		return "", fmt.Errorf("caddy pull: %w", err)
 	}
-
-	// Translate host path → VM path → container path. The podman machine was
-	// initialized with --volume ~/BasePodData:/BasePodData so a Mac path like
-	// "~/BasePodData/_basepod/caddy" appears inside the VM as
-	// "/BasePodData/_basepod/caddy".
-	home, _ := os.UserHomeDir()
-	vmConfigDir := strings.Replace(hostConfigDir, filepath.Join(home, "BasePodData"), "/BasePodData", 1)
 
 	log.Info("bootstrap: creating caddy container", "config_dir", vmConfigDir)
 	req := podman.ContainerCreateRequest{
@@ -210,6 +233,105 @@ func ensureCaddy(ctx context.Context, pc *podman.Client, cfg config.Config, log 
 		return "", fmt.Errorf("caddy start: %w", err)
 	}
 	return hostConfigDir, nil
+}
+
+func caddyContainerNeedsRecreate(ci *podman.ContainerInspect, expectedConfigSource string) bool {
+	if ci == nil {
+		return true
+	}
+	if hasAdminPortBinding(ci) {
+		return true
+	}
+	if !stringSlicesEqual(ci.Config.Cmd, []string{"caddy", "run", "--config", caddy.ConfigFileInContainer}) {
+		return true
+	}
+	return !hasMount(ci.Mounts, expectedConfigSource, "/etc/caddy")
+}
+
+func hasAdminPortBinding(ci *podman.ContainerInspect) bool {
+	for port := range ci.HostConfig.PortBindings {
+		if strings.HasPrefix(port, "2019/") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasMount(mounts []podman.ContainerMount, source, destination string) bool {
+	for _, m := range mounts {
+		if m.Destination == destination && cleanSlashPath(m.Source) == cleanSlashPath(source) {
+			return true
+		}
+	}
+	return false
+}
+
+func cleanSlashPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Clean(path))
+}
+
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func vmPathForDataDir(dataDir, hostPath string) (string, error) {
+	absDataDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve data dir: %w", err)
+	}
+	absHostPath, err := filepath.Abs(hostPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve host path: %w", err)
+	}
+	rel, err := filepath.Rel(absDataDir, absHostPath)
+	if err != nil {
+		return "", fmt.Errorf("map caddy config dir into podman VM: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("host path %s is outside data dir %s", absHostPath, absDataDir)
+	}
+	if rel == "." {
+		if pathWithinAny(absHostPath, defaultPodmanMachineMounts) {
+			return filepath.ToSlash(absHostPath), nil
+		}
+		return VMDataDir, nil
+	}
+	if pathWithinAny(absHostPath, defaultPodmanMachineMounts) {
+		return filepath.ToSlash(absHostPath), nil
+	}
+	return filepath.ToSlash(filepath.Join(VMDataDir, rel)), nil
+}
+
+func pathWithinAny(path string, roots []string) bool {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	for _, root := range roots {
+		if pathWithin(absPath, root) {
+			return true
+		}
+	}
+	return false
+}
+
+func pathWithin(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func waitCaddy(ctx context.Context, cc *caddy.Client, log *slog.Logger) error {

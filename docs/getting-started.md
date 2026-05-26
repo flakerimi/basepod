@@ -8,11 +8,13 @@ experience similar to [CapRover](https://caprover.com).
 
 - Apple Silicon Mac (`darwin/arm64`)
 - macOS 13+
-- `podman` 5+ (`brew install podman`)
-- A public IP and a domain pointing at it (for Let's Encrypt)
-- Ports `80` and `443` open on the host
+- `podman` 5+; the installer can install it through Homebrew when missing
+- A public IP and a domain pointing at it for public app subdomains and TLS
+- Ports `80` and `443` open on the host for public app traffic
 
 ## Install
+
+Full server + CLI install:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/flakerimi/basepod/main/scripts/install.sh | sh
@@ -20,9 +22,19 @@ curl -fsSL https://raw.githubusercontent.com/flakerimi/basepod/main/scripts/inst
 
 This:
 
-1. Installs `basepod-server` and `basepod` into `/usr/local/bin/`
-2. Writes a launchd plist at `~/Library/LaunchAgents/dev.basepod.server.plist`
-3. Loads the agent — the server stays running across reboots
+1. Prompts to install Podman through Homebrew when Podman is missing
+2. Installs `basepod-server` and `basepod` into `/usr/local/bin/`
+3. Writes a launchd plist at `~/Library/LaunchAgents/dev.basepod.server.plist`
+4. Loads the agent — the server stays running across reboots
+
+To install only the CLI for managing an existing BasePod server:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/flakerimi/basepod/main/scripts/install-cli.sh | sh
+```
+
+The CLI-only installer does not install Podman, start the server, or register a
+launchd service.
 
 Or build from source:
 
@@ -39,12 +51,12 @@ On first run the server:
 
 1. Detects `podman` and starts the `podman machine` if it isn't running
 2. Creates the `basepod` Podman network
-3. Pulls and starts a Caddy container, publishing host ports `:80`, `:443`,
-   and `127.0.0.1:2019` (admin)
-4. Auto-generates an admin password and prints it once to stdout (or to the
-   launchd log at `~/BasePodData/_basepod/logs/server.out.log`)
+3. Pulls and starts a Caddy container, publishing host ports `:80` and `:443`;
+   Caddy admin stays off TCP and is controlled through an internal Unix socket
+   via `podman exec`
+4. Leaves admin setup pending unless `BASEPOD_ADMIN_PASSWORD` is set
 
-To set the password yourself instead:
+To provision the admin user from the shell instead of the browser:
 
 ```sh
 launchctl unload ~/Library/LaunchAgents/dev.basepod.server.plist
@@ -53,7 +65,8 @@ BASEPOD_ADMIN_PASSWORD=secret /usr/local/bin/basepod-server &
 
 ## Open the dashboard
 
-Visit <http://localhost:8080>, log in with `admin` + the printed password.
+Visit <http://localhost:8080>. On first run, create the admin user in the
+browser.
 
 ## Point a domain
 

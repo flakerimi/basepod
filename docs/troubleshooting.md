@@ -19,14 +19,18 @@ If empty: `podman machine stop && podman machine start`.
 
 > `caddy admin endpoint not reachable`
 
-The Caddy container started but port `2019` isn't bound. Check:
+Caddy admin is not exposed on TCP. BasePod writes the rendered config to the
+host-mounted Caddy config directory, then reloads Caddy through a Unix socket
+inside the container with `podman exec`. Check:
 
 ```sh
 podman ps --filter name=basepod-caddy
 podman logs basepod-caddy --tail 50
+ls -l ~/BasePodData/_basepod/caddy/current.json
 ```
 
-Often a port conflict with a host-installed Caddy or another local service.
+If `podman port basepod-caddy` still shows `2019`, restart `basepod-server` so
+bootstrap can recreate the legacy Caddy container without the old admin port.
 
 ## Port :80 / :443 already in use
 

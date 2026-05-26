@@ -25,6 +25,7 @@ web: ## build the Vue SPA
 	cd web && pnpm install && pnpm build
 
 test: ## run tests
+	./scripts/test-installers.sh
 	go test ./... -race -count=1
 
 lint: ## run linters

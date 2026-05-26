@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # BasePod installer.
 #
 # Usage:
@@ -8,12 +8,13 @@
 # Installs `basepod-server` and `basepod` to /usr/local/bin and registers a
 # launchd agent at ~/Library/LaunchAgents/dev.basepod.server.plist.
 
-set -euo pipefail
+set -eu
 
 REPO="${BASEPOD_REPO:-flakerimi/basepod}"
 VERSION="${BASEPOD_VERSION:-}"
 PREFIX="${BASEPOD_PREFIX:-/usr/local/bin}"
 DATA_DIR="${BASEPOD_DATA_DIR:-${HOME}/BasePodData}"
+INSTALL_DEPS="${BASEPOD_INSTALL_DEPS:-}"
 
 red()    { printf "\033[31m%s\033[0m\n" "$*"; }
 green()  { printf "\033[32m%s\033[0m\n" "$*"; }
@@ -26,27 +27,85 @@ require() {
   }
 }
 
-if [[ "$(uname)" != "Darwin" ]]; then
+find_brew() {
+  if command -v brew >/dev/null 2>&1; then
+    command -v brew
+    return 0
+  fi
+  if [ -x /opt/homebrew/bin/brew ]; then
+    printf "%s\n" /opt/homebrew/bin/brew
+    return 0
+  fi
+  if [ -x /usr/local/bin/brew ]; then
+    printf "%s\n" /usr/local/bin/brew
+    return 0
+  fi
+  return 1
+}
+
+is_truthy() {
+  case "$1" in
+    1|true|TRUE|yes|YES|y|Y) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+prompt_yes_no() {
+  question="$1"
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    printf "%s [y/N] " "$question" >/dev/tty
+    IFS= read -r answer </dev/tty || answer=""
+    case "$answer" in
+      y|Y|yes|YES|Yes) return 0 ;;
+    esac
+  fi
+  return 1
+}
+
+ensure_podman() {
+  if command -v podman >/dev/null 2>&1; then
+    return 0
+  fi
+
+  yellow "Podman is required and is not installed."
+  BREW="$(find_brew || true)"
+  if [ -z "$BREW" ]; then
+    red "Homebrew was not found, so this installer cannot install Podman automatically."
+    echo "Install Homebrew from https://brew.sh, then run: brew install podman"
+    echo "After that, rerun this installer."
+    exit 1
+  fi
+
+  if is_truthy "$INSTALL_DEPS" || prompt_yes_no "Install Podman now with Homebrew?"; then
+    green "==> installing Podman with Homebrew"
+    "$BREW" install podman
+    return 0
+  fi
+
+  red "Podman is required to run BasePod."
+  echo "Install it with: brew install podman"
+  echo "Or rerun this installer with: BASEPOD_INSTALL_DEPS=1"
+  exit 1
+}
+
+if [ "$(uname)" != "Darwin" ]; then
   red "BasePod only supports macOS in v1."
   exit 1
 fi
-if [[ "$(uname -m)" != "arm64" ]]; then
+if [ "$(uname -m)" != "arm64" ]; then
   red "BasePod requires Apple Silicon (arm64). Detected: $(uname -m)"
   exit 1
 fi
 
 require curl
 require tar
-if ! command -v podman >/dev/null 2>&1; then
-  yellow "podman is not installed. Install it with: brew install podman"
-  yellow "Then run: podman machine init && podman machine start"
-fi
+ensure_podman
 
-if [[ -z "${VERSION}" ]]; then
+if [ -z "${VERSION}" ]; then
   VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
 fi
-if [[ -z "${VERSION}" ]]; then
+if [ -z "${VERSION}" ]; then
   red "could not determine latest release; set BASEPOD_VERSION to override"
   exit 1
 fi
@@ -60,7 +119,7 @@ echo "downloading ${URL}"
 curl -fsSL "${URL}" -o "${TMP}/basepod.tar.gz"
 tar -C "${TMP}" -xzf "${TMP}/basepod.tar.gz"
 
-if [[ ! -w "${PREFIX}" ]]; then
+if [ ! -w "${PREFIX}" ]; then
   yellow "installing to ${PREFIX} requires sudo"
   sudo install -m 0755 "${TMP}/basepod-server" "${PREFIX}/basepod-server"
   sudo install -m 0755 "${TMP}/basepod"        "${PREFIX}/basepod"
@@ -103,10 +162,27 @@ launchctl unload "${PLIST_PATH}" 2>/dev/null || true
 launchctl load   "${PLIST_PATH}"
 
 green "==> BasePod ${VERSION} installed"
-echo "  server binary:  ${PREFIX}/basepod-server"
-echo "  cli binary:     ${PREFIX}/basepod"
-echo "  data dir:       ${DATA_DIR}"
-echo "  launchd plist:  ${PLIST_PATH}"
 echo
-echo "Open http://localhost:8080 to set up your admin user."
-echo "View logs:  tail -f ${LOG_DIR}/server.{out,err}.log"
+echo "Binaries:"
+echo "  server: ${PREFIX}/basepod-server"
+echo "  cli:    ${PREFIX}/basepod"
+echo
+echo "Service:"
+echo "  launchd: loaded"
+echo "  status:  starting"
+echo "  plist:   ${PLIST_PATH}"
+echo "  logs:    tail -f ${LOG_DIR}/server.out.log ${LOG_DIR}/server.err.log"
+echo
+echo "Dependencies:"
+echo "  Podman: installed"
+echo "  Caddy:  managed automatically as a container"
+echo
+echo "Data:"
+echo "  ${DATA_DIR}"
+echo
+echo "Open:"
+echo "  http://localhost:8080"
+echo
+echo "First run:"
+echo "  1. Create your admin user"
+echo "  2. Optional: configure a root domain for app subdomains"

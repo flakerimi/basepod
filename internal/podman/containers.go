@@ -15,7 +15,7 @@ type PortMapping struct {
 }
 
 type Mount struct {
-	Type        string   `json:"Type"`        // bind | volume
+	Type        string   `json:"Type"` // bind | volume
 	Source      string   `json:"Source"`
 	Destination string   `json:"Destination"`
 	Options     []string `json:"Options,omitempty"`
@@ -34,21 +34,21 @@ type ResourceLimits struct {
 }
 
 type ContainerCreateRequest struct {
-	Name        string            `json:"name,omitempty"`
-	Image       string            `json:"image"`
-	Command     []string          `json:"command,omitempty"`
-	Env         map[string]string `json:"env,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	Name        string              `json:"name,omitempty"`
+	Image       string              `json:"image"`
+	Command     []string            `json:"command,omitempty"`
+	Env         map[string]string   `json:"env,omitempty"`
+	Labels      map[string]string   `json:"labels,omitempty"`
 	Networks    map[string]struct{} `json:"-"`
-	NetNS       Namespace         `json:"netns,omitempty"`
-	CNINetworks []string          `json:"cni_networks,omitempty"`
-	PortMaps    []PortMapping     `json:"portmappings,omitempty"`
-	Mounts      []Mount           `json:"mounts,omitempty"`
-	Healthcheck *HealthConfig     `json:"healthconfig,omitempty"`
-	Resources   *ResourceLimits   `json:"resource_limits,omitempty"`
-	Remove      bool              `json:"remove,omitempty"`
-	Hostname    string            `json:"hostname,omitempty"`
-	Restart     string            `json:"restart_policy,omitempty"`
+	NetNS       Namespace           `json:"netns,omitempty"`
+	CNINetworks []string            `json:"cni_networks,omitempty"`
+	PortMaps    []PortMapping       `json:"portmappings,omitempty"`
+	Mounts      []Mount             `json:"mounts,omitempty"`
+	Healthcheck *HealthConfig       `json:"healthconfig,omitempty"`
+	Resources   *ResourceLimits     `json:"resource_limits,omitempty"`
+	Remove      bool                `json:"remove,omitempty"`
+	Hostname    string              `json:"hostname,omitempty"`
+	Restart     string              `json:"restart_policy,omitempty"`
 }
 
 type Namespace struct {
@@ -92,6 +92,28 @@ func (c *Client) ContainerRename(ctx context.Context, oldName, newName string) e
 	return c.postJSON(ctx, "/containers/"+url.PathEscape(oldName)+"/rename?"+q.Encode(), nil, nil)
 }
 
+type PortBinding struct {
+	HostIP   string `json:"HostIp,omitempty"`
+	HostPort string `json:"HostPort,omitempty"`
+}
+
+type ContainerMount struct {
+	Type        string `json:"Type"`
+	Source      string `json:"Source"`
+	Destination string `json:"Destination"`
+}
+
+type ContainerInspectConfig struct {
+	Image  string            `json:"Image"`
+	Cmd    []string          `json:"Cmd"`
+	Env    []string          `json:"Env"`
+	Labels map[string]string `json:"Labels"`
+}
+
+type ContainerInspectHostConfig struct {
+	PortBindings map[string][]PortBinding `json:"PortBindings"`
+}
+
 type ContainerInspect struct {
 	ID    string `json:"Id"`
 	Name  string `json:"Name"`
@@ -104,11 +126,9 @@ type ContainerInspect struct {
 			Status string `json:"Status"`
 		} `json:"Health"`
 	} `json:"State"`
-	Config struct {
-		Image string            `json:"Image"`
-		Env   []string          `json:"Env"`
-		Labels map[string]string `json:"Labels"`
-	} `json:"Config"`
+	Config          ContainerInspectConfig     `json:"Config"`
+	HostConfig      ContainerInspectHostConfig `json:"HostConfig"`
+	Mounts          []ContainerMount           `json:"Mounts"`
 	NetworkSettings struct {
 		IPAddress string `json:"IPAddress"`
 	} `json:"NetworkSettings"`

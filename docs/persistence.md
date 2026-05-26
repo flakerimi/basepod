@@ -32,15 +32,19 @@ inside the Podman VM disk.
 
 ## 3. The Podman machine bind
 
-Containers on macOS run inside a Linux VM, not directly on the Mac. Bind
-mounts work because BasePod initializes the machine with:
+Containers on macOS run inside a Linux VM, not directly on the Mac. The default
+data directory is `~/BasePodData`; Podman's default `/Users` machine mount makes
+that path visible inside the VM at the same `/Users/...` path.
+
+For a custom `BASEPOD_DATA_DIR` outside Podman's default mounts, BasePod
+initializes new machines with:
 
 ```sh
-podman machine init --volume ~/BasePodData:/BasePodData
+podman machine init --volume /absolute/custom/BasePodData:/BasePodData
 ```
 
-If you have an existing machine without that volume mapping you have to
-recreate it (`podman machine rm && podman machine init --volume ...`).
+If you have an existing machine without that custom volume mapping, recreate it
+with the same `--volume` option.
 
 ## What survives what
 
