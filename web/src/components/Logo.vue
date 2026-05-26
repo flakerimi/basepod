@@ -12,15 +12,7 @@ function px(v: number | string | undefined, fallback: number) {
   <img
     src="/logo.svg"
     alt="basepod"
-    class="logo"
+    class="block w-auto max-w-full"
     :style="{ height: px(props.height, 28) }"
   />
 </template>
-
-<style scoped>
-.logo {
-  display: block;
-  width: auto;
-  max-width: 100%;
-}
-</style>
