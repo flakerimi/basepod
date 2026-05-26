@@ -559,113 +559,139 @@ DATABASE_URL=postgres://..."
       </div>
     </section>
 
-    <section v-else-if="tab === 'git'" class="flex flex-col gap-4 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
-      <div>
-        <h3 class="m-0 text-base font-semibold">Deploy from Git</h3>
-        <p class="m-0 mt-1 text-sm text-(--ui-text-muted)">
-          Build straight from a GitHub, GitLab, or Bitbucket repository. After save,
-          rotate a webhook secret to enable push-to-deploy.
-        </p>
-      </div>
-
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <UFormField label="Repository URL" class="md:col-span-2">
-          <UInput v-model="git.url" placeholder="https://github.com/owner/repo" />
-        </UFormField>
-        <UFormField label="Branch">
-          <UInput v-model="git.branch" placeholder="main" />
-        </UFormField>
-        <UFormField label="Dockerfile path">
-          <UInput v-model="git.dockerfile" placeholder="Dockerfile" />
-        </UFormField>
-      </div>
-
-      <div>
-        <h4 class="m-0 mb-1 text-sm font-semibold">Authentication</h4>
-        <p class="m-0 mb-2 text-xs text-(--ui-text-muted)">
-          Public repos: leave blank. Private GitHub: paste a PAT. GitLab/Bitbucket: username + password.
-        </p>
-        <URadioGroup
-          v-model="gitAuthMode"
-          :items="[
-            { label: 'GitHub PAT / token', value: 'token' },
-            { label: 'Username + password', value: 'userpass' },
-          ]"
-          orientation="horizontal"
-        />
-      </div>
-
-      <div v-if="gitAuthMode === 'token'">
-        <UFormField :label="git.has_credential ? 'Replace token (leave blank to keep existing)' : 'Token'">
-          <UInput v-model="gitToken" type="password" placeholder="ghp_xxx" />
-        </UFormField>
-      </div>
-      <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <UFormField label="Username">
-          <UInput v-model="gitUser" placeholder="me / oauth2" />
-        </UFormField>
-        <UFormField :label="git.has_credential ? 'Replace password' : 'Password / app password'">
-          <UInput v-model="gitPass" type="password" />
-        </UFormField>
-      </div>
-
-      <div class="flex gap-2">
-        <UButton :loading="gitSaving" :disabled="!git.url" @click="saveGit">Save</UButton>
-        <UButton
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-rocket"
-          :loading="gitDeploying"
-          :disabled="!git.url"
-          @click="deployFromGit"
-        >Force build</UButton>
-      </div>
-
-      <hr class="m-0 border-0 border-t border-(--ui-border)" />
-
-      <div>
-        <h4 class="m-0 mb-1 text-sm font-semibold">Webhook</h4>
-        <p class="m-0 text-xs text-(--ui-text-muted)">
-          GitHub / GitLab will POST here on every push. We verify the HMAC signature
-          against the secret below before triggering a deploy.
-        </p>
-      </div>
-
-      <div v-if="git.webhook_url" class="flex flex-col gap-2 rounded-xl border border-(--ui-border) bg-(--ui-bg) p-4">
-        <div class="grid grid-cols-[180px_1fr_auto] items-center gap-3">
-          <span class="text-sm text-(--ui-text-muted)">Payload URL</span>
-          <code class="break-all rounded-md bg-(--ui-bg-muted) px-2 py-1 font-mono text-sm">{{ gitWebhookURL || git.webhook_url }}</code>
-          <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookURL || git.webhook_url)" />
+    <section v-else-if="tab === 'git'" class="flex flex-col gap-4">
+      <!-- Status banner -->
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) px-5 py-4">
+        <div class="flex items-center gap-3">
+          <UIcon name="i-lucide-git-branch" class="text-2xl text-(--ui-primary)" />
+          <div>
+            <div class="font-semibold">
+              {{ git.url ? 'Connected' : 'Not connected' }}
+            </div>
+            <div class="text-sm text-(--ui-text-muted)">
+              <code v-if="git.url" class="bg-transparent p-0">{{ git.url }}</code>
+              <span v-else>Configure a repository to enable git deploys.</span>
+              <span v-if="git.url"> · branch <code class="bg-transparent p-0">{{ git.branch || 'main' }}</code></span>
+            </div>
+          </div>
         </div>
-        <div v-if="gitWebhookRevealed" class="grid grid-cols-[180px_1fr_auto] items-center gap-3">
-          <span class="text-sm text-(--ui-text-muted)">Secret (shown once)</span>
-          <code class="break-all rounded-md bg-(--ui-bg-muted) px-2 py-1 font-mono text-sm text-(--ui-primary)">{{ gitWebhookRevealed }}</code>
-          <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookRevealed)" />
-        </div>
-        <div v-else-if="git.has_webhook" class="grid grid-cols-[180px_1fr_auto] items-center gap-3">
-          <span class="text-sm text-(--ui-text-muted)">Secret</span>
-          <span class="text-sm text-(--ui-text-muted)">configured — rotate below to view a new one</span>
-          <span />
+        <div class="flex flex-wrap gap-1.5">
+          <span v-if="git.has_credential" class="rounded-full border border-(--ui-border) bg-(--ui-bg-muted) px-2.5 py-0.5 text-xs text-(--ui-text-muted)">credential saved</span>
+          <span v-if="git.has_webhook" class="rounded-full border border-green-600/40 bg-green-500/10 px-2.5 py-0.5 text-xs text-green-700">webhook active</span>
+          <span v-else class="rounded-full border border-(--ui-border) bg-(--ui-bg-muted) px-2.5 py-0.5 text-xs text-(--ui-text-muted)">webhook disabled</span>
         </div>
       </div>
 
-      <div>
-        <UButton variant="outline" icon="i-lucide-key" @click="rotateWebhook">
-          {{ git.has_webhook ? 'Rotate webhook secret' : 'Generate webhook secret' }}
-        </UButton>
-      </div>
+      <!-- Two columns -->
+      <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <!-- LEFT: repository + auth -->
+        <div class="flex flex-col gap-4 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
+          <div>
+            <h3 class="m-0 text-base font-semibold">Repository</h3>
+            <p class="m-0 mt-1 text-xs text-(--ui-text-muted)">GitHub, GitLab, Bitbucket — any HTTPS git URL.</p>
+          </div>
 
-      <details class="rounded-xl border border-(--ui-border) bg-(--ui-bg) px-4 py-3">
-        <summary class="cursor-pointer font-medium">Connect GitHub</summary>
-        <ol class="m-0 mt-3 list-decimal pl-5 leading-relaxed">
-          <li>In your repo: Settings → Webhooks → Add webhook</li>
-          <li>Payload URL: paste the URL above</li>
-          <li>Content type: <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5 text-xs">application/json</code></li>
-          <li>Secret: paste the secret above (shown only after rotate)</li>
-          <li>Events: <strong>Just the push event</strong></li>
-          <li>Save. Next push to <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5 text-xs">{{ git.branch || 'main' }}</code> triggers a deploy.</li>
-        </ol>
-      </details>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <UFormField label="Repository URL" class="md:col-span-2">
+              <UInput v-model="git.url" placeholder="https://github.com/owner/repo" />
+            </UFormField>
+            <UFormField label="Branch">
+              <UInput v-model="git.branch" placeholder="main" />
+            </UFormField>
+            <UFormField label="Dockerfile path">
+              <UInput v-model="git.dockerfile" placeholder="Dockerfile" />
+            </UFormField>
+          </div>
+
+          <hr class="m-0 border-0 border-t border-(--ui-border)" />
+
+          <div>
+            <h4 class="m-0 text-sm font-semibold">Authentication</h4>
+            <p class="m-0 mt-1 text-xs text-(--ui-text-muted)">
+              Public repos: leave blank. Private GitHub: PAT. GitLab/Bitbucket: user + password.
+            </p>
+          </div>
+          <URadioGroup
+            v-model="gitAuthMode"
+            :items="[
+              { label: 'GitHub PAT / token', value: 'token' },
+              { label: 'Username + password', value: 'userpass' },
+            ]"
+            orientation="horizontal"
+          />
+          <div v-if="gitAuthMode === 'token'">
+            <UFormField :label="git.has_credential ? 'Replace token (leave blank to keep existing)' : 'Token'">
+              <UInput v-model="gitToken" type="password" placeholder="ghp_xxx" />
+            </UFormField>
+          </div>
+          <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <UFormField label="Username">
+              <UInput v-model="gitUser" placeholder="me / oauth2" />
+            </UFormField>
+            <UFormField :label="git.has_credential ? 'Replace password' : 'Password / app password'">
+              <UInput v-model="gitPass" type="password" />
+            </UFormField>
+          </div>
+
+          <div class="flex items-center gap-2 border-t border-(--ui-border) pt-3">
+            <UButton :loading="gitSaving" :disabled="!git.url" @click="saveGit">Save</UButton>
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-rocket"
+              :loading="gitDeploying"
+              :disabled="!git.url"
+              @click="deployFromGit"
+            >Force build</UButton>
+          </div>
+        </div>
+
+        <!-- RIGHT: webhook -->
+        <div class="flex flex-col gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
+          <div class="flex items-baseline justify-between gap-3">
+            <h3 class="m-0 text-base font-semibold">Webhook</h3>
+            <span class="text-xs text-(--ui-text-muted)">push → deploy</span>
+          </div>
+
+          <div v-if="git.webhook_url" class="flex flex-col gap-3 rounded-xl border border-(--ui-border) bg-(--ui-bg) p-3">
+            <div class="flex flex-col gap-1">
+              <span class="text-xs uppercase tracking-wider text-(--ui-text-muted)">Payload URL</span>
+              <div class="flex items-center gap-2">
+                <code class="flex-1 break-all rounded-md bg-(--ui-bg-muted) px-2 py-1.5 font-mono text-xs">{{ gitWebhookURL || git.webhook_url }}</code>
+                <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookURL || git.webhook_url)" />
+              </div>
+            </div>
+
+            <div v-if="gitWebhookRevealed" class="flex flex-col gap-1">
+              <span class="text-xs uppercase tracking-wider text-(--ui-primary)">Secret · shown once</span>
+              <div class="flex items-center gap-2">
+                <code class="flex-1 break-all rounded-md bg-(--ui-primary)/10 px-2 py-1.5 font-mono text-xs text-(--ui-primary)">{{ gitWebhookRevealed }}</code>
+                <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookRevealed)" />
+              </div>
+            </div>
+            <div v-else-if="git.has_webhook" class="flex flex-col gap-1">
+              <span class="text-xs uppercase tracking-wider text-(--ui-text-muted)">Secret</span>
+              <span class="text-sm text-(--ui-text-muted)">configured — rotate to view a new one</span>
+            </div>
+          </div>
+
+          <UButton variant="outline" icon="i-lucide-key" @click="rotateWebhook">
+            {{ git.has_webhook ? 'Rotate webhook secret' : 'Generate webhook secret' }}
+          </UButton>
+
+          <details class="rounded-xl border border-(--ui-border) bg-(--ui-bg) px-3 py-2 text-sm">
+            <summary class="cursor-pointer font-medium">Connect GitHub</summary>
+            <ol class="m-0 mt-3 list-decimal space-y-1 pl-5 text-xs leading-relaxed">
+              <li>In your repo: Settings → Webhooks → Add webhook</li>
+              <li>Payload URL: paste the URL above</li>
+              <li>Content type: <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5">application/json</code></li>
+              <li>Secret: paste the secret above (after rotate)</li>
+              <li>Events: <strong>Just the push event</strong></li>
+              <li>Next push to <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5">{{ git.branch || 'main' }}</code> triggers a deploy.</li>
+            </ol>
+          </details>
+        </div>
+      </div>
     </section>
 
     <section v-else-if="tab === 'logs'" class="flex flex-col gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
