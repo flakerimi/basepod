@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -71,7 +72,8 @@ func loginHandler(d Deps) http.HandlerFunc {
 			Value:    sid,
 			Path:     "/",
 			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
+			Secure:   r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https"),
+			SameSite: http.SameSiteStrictMode,
 			Expires:  time.Now().Add(auth.SessionTTL),
 		})
 		writeJSON(w, 200, map[string]any{"user": u})

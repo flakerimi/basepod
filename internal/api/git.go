@@ -58,6 +58,11 @@ func putAppGitHandler(d Deps) http.HandlerFunc {
 				writeErr(w, 500, "encrypt_failed", err.Error())
 				return
 			}
+		} else {
+			// No new secret in this request — preserve the existing one.
+			if row, gerr := d.Queries.GetAppGit(r.Context(), a.ID); gerr == nil {
+				enc = row.GitTokenEncrypted
+			}
 		}
 		if err := d.Queries.SetAppGit(r.Context(), db.SetAppGitParams{
 			GitUrl:            body.URL,

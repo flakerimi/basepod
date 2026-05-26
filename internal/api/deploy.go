@@ -81,9 +81,15 @@ func deployHandler(d Deps) http.HandlerFunc {
 }
 
 func handleImageDeployJSON(w http.ResponseWriter, r *http.Request, d Deps, a *apps.App, image string) {
+	release, ok := d.Locks.TryAcquire(a.Name)
+	if !ok {
+		writeErr(w, 409, "deploy_in_progress", "a deploy is already running for this app")
+		return
+	}
 	topic := "app:" + a.Name + ":deploy"
 	d.Events.Publish(topic, "started", map[string]any{"image": image})
 	if err := d.Builder.PullImage(r.Context(), image); err != nil {
+		release()
 		d.Events.Publish(topic, "failed", map[string]any{"error": err.Error()})
 		writeErr(w, 502, "pull_failed", err.Error())
 		return
@@ -92,6 +98,7 @@ func handleImageDeployJSON(w http.ResponseWriter, r *http.Request, d Deps, a *ap
 	verID, _ := d.Apps.RecordVersion(r.Context(), a.ID, version, image, "deploying")
 	audit(r.Context(), d, "app.deploy", a.Name, map[string]any{"mode": "image", "image": image})
 	go func() {
+		defer release()
 		ctx := context.Background()
 		err := d.Orchestrator.Deploy(ctx, deploy.Request{
 			App:      a,
@@ -110,12 +117,19 @@ func handleImageDeployJSON(w http.ResponseWriter, r *http.Request, d Deps, a *ap
 }
 
 func handleTarballDeploy(w http.ResponseWriter, r *http.Request, d Deps, a *apps.App) {
+	release, ok := d.Locks.TryAcquire(a.Name)
+	if !ok {
+		writeErr(w, 409, "deploy_in_progress", "a deploy is already running for this app")
+		return
+	}
 	if err := r.ParseMultipartForm(512 << 20); err != nil {
+		release()
 		writeErr(w, 400, "bad_request", "expected multipart upload")
 		return
 	}
 	f, _, err := r.FormFile("tar")
 	if err != nil {
+		release()
 		writeErr(w, 400, "bad_request", "tar file required")
 		return
 	}
@@ -123,17 +137,20 @@ func handleTarballDeploy(w http.ResponseWriter, r *http.Request, d Deps, a *apps
 
 	workdir, _ := d.Orchestrator.EnsureWorkdir(a.Name)
 	if err := os.MkdirAll(workdir, 0o755); err != nil {
+		release()
 		writeErr(w, 500, "server_error", err.Error())
 		return
 	}
 	tarPath := filepath.Join(workdir, "context.tar")
 	out, err := os.Create(tarPath)
 	if err != nil {
+		release()
 		writeErr(w, 500, "server_error", err.Error())
 		return
 	}
 	if _, err := io.Copy(out, f); err != nil {
 		out.Close()
+		release()
 		writeErr(w, 500, "server_error", err.Error())
 		return
 	}
@@ -152,6 +169,7 @@ func handleTarballDeploy(w http.ResponseWriter, r *http.Request, d Deps, a *apps
 
 	verID, _ := d.Apps.RecordVersion(r.Context(), a.ID, "pending", "", "building")
 	go func() {
+		defer release()
 		ctx := context.Background()
 		f, err := os.Open(tarPath)
 		if err != nil {

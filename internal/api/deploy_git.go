@@ -41,11 +41,17 @@ func handleGitDeploy(w http.ResponseWriter, r *http.Request, d Deps, a *apps.App
 	if branch == "" {
 		branch = "main"
 	}
+	release, ok := d.Locks.TryAcquire(a.Name)
+	if !ok {
+		writeErr(w, 409, "deploy_in_progress", "a deploy is already running for this app")
+		return
+	}
 	topic := "app:" + a.Name + ":deploy"
 
 	workdir := filepath.Join(d.Cfg.WorkDir(), a.Name, "git")
 	_ = os.RemoveAll(workdir)
 	if err := os.MkdirAll(filepath.Dir(workdir), 0o755); err != nil {
+		release()
 		writeErr(w, 500, "server_error", err.Error())
 		return
 	}
@@ -56,6 +62,7 @@ func handleGitDeploy(w http.ResponseWriter, r *http.Request, d Deps, a *apps.App
 	d.Events.Publish(topic, "started", map[string]any{"kind": "git", "url": gitURL, "branch": branch})
 
 	go func() {
+		defer release()
 		ctx := context.Background()
 		if err := gitpkg.Clone(ctx, gitpkg.CloneOptions{
 			URL: gitURL, Branch: branch, Commit: commit, Token: token, Dest: workdir,

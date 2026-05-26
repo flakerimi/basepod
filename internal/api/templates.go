@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -100,9 +101,10 @@ func installTemplateHandler(d Deps) http.HandlerFunc {
 			writeErr(w, 500, "env_failed", err.Error())
 			return
 		}
-		// Pull + deploy in background.
+		// Pull + deploy in background. Detach from r.Context() — the HTTP
+		// request returns immediately and would otherwise cancel the deploy.
 		go func() {
-			ctx := r.Context()
+			ctx := context.Background()
 			_ = d.Builder.PullImage(ctx, rendered.Image)
 			version := nowVersion()
 			_, _ = d.Apps.RecordVersion(ctx, a.ID, version, rendered.Image, "deploying")

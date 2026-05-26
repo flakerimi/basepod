@@ -27,6 +27,9 @@ func Clone(ctx context.Context, opts CloneOptions) error {
 	if opts.URL == "" || opts.Dest == "" {
 		return errors.New("git: URL and Dest required")
 	}
+	if err := validateRef(opts.URL, opts.Branch, opts.Commit); err != nil {
+		return err
+	}
 	if opts.Branch == "" {
 		opts.Branch = "main"
 	}
@@ -40,7 +43,7 @@ func Clone(ctx context.Context, opts CloneOptions) error {
 	args := []string{
 		"clone", "--depth", fmt.Sprintf("%d", opts.Depth),
 		"--branch", opts.Branch, "--single-branch",
-		authURL, opts.Dest,
+		"--", authURL, opts.Dest,
 	}
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Env = append(envClean(),
@@ -53,12 +56,12 @@ func Clone(ctx context.Context, opts CloneOptions) error {
 	}
 	if opts.Commit != "" {
 		// Fetch the specific commit then check it out — depth=1 may not have it.
-		fc := exec.CommandContext(ctx, "git", "-C", opts.Dest, "fetch", "--depth", "1", "origin", opts.Commit)
+		fc := exec.CommandContext(ctx, "git", "-C", opts.Dest, "fetch", "--depth", "1", "--", "origin", opts.Commit)
 		fc.Env = cmd.Env
 		if fout, ferr := fc.CombinedOutput(); ferr != nil {
 			return &Error{Op: "fetch-commit", Repo: redact(authURL), Output: string(fout), Err: ferr}
 		}
-		co := exec.CommandContext(ctx, "git", "-C", opts.Dest, "checkout", "--detach", opts.Commit)
+		co := exec.CommandContext(ctx, "git", "-C", opts.Dest, "checkout", "--detach", "--", opts.Commit)
 		if cout, cerr := co.CombinedOutput(); cerr != nil {
 			return &Error{Op: "checkout", Repo: redact(authURL), Output: string(cout), Err: cerr}
 		}

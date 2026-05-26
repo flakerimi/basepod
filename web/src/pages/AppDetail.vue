@@ -65,7 +65,13 @@ interface GitConfig {
   has_webhook: boolean
   webhook_url: string
 }
-const git = ref<GitConfig>({ url: '', branch: 'main', dockerfile: 'Dockerfile', has_credential: false, has_webhook: false, webhook_url: '' })
+
+function blankGitConfig(): GitConfig {
+  return { url: '', branch: 'main', dockerfile: 'Dockerfile', has_credential: false, has_webhook: false, webhook_url: '' }
+}
+
+const git = ref<GitConfig>(blankGitConfig())
+const savedGit = ref<GitConfig>(blankGitConfig())
 const gitToken = ref('')
 const gitUser = ref('')
 const gitPass = ref('')
@@ -74,6 +80,20 @@ const gitSaving = ref(false)
 const gitDeploying = ref(false)
 const gitWebhookRevealed = ref<string | null>(null)
 const gitWebhookURL = ref('')
+const gitDirty = computed(() => {
+  const current = {
+    url: git.value.url,
+    branch: git.value.branch || 'main',
+    dockerfile: git.value.dockerfile || 'Dockerfile',
+  }
+  const saved = {
+    url: savedGit.value.url,
+    branch: savedGit.value.branch || 'main',
+    dockerfile: savedGit.value.dockerfile || 'Dockerfile',
+  }
+  return JSON.stringify(current) !== JSON.stringify(saved)
+    || Boolean(gitToken.value || gitPass.value || (gitAuthMode.value === 'userpass' && gitUser.value))
+})
 
 let stopLogs: (() => void) | undefined
 
@@ -170,9 +190,21 @@ function resetCfg() {
 async function loadGit() {
   try {
     const g = await api.get<GitConfig>(`/api/v1/apps/${props.name}/git`)
-    git.value = g
-    gitWebhookURL.value = g.webhook_url
-  } catch { /* fresh app */ }
+    const normalized = {
+      ...blankGitConfig(),
+      ...g,
+      branch: g.branch || 'main',
+      dockerfile: g.dockerfile || 'Dockerfile',
+    }
+    git.value = { ...normalized }
+    savedGit.value = { ...normalized }
+    gitWebhookURL.value = normalized.webhook_url
+  } catch {
+    const empty = blankGitConfig()
+    git.value = { ...empty }
+    savedGit.value = { ...empty }
+    gitWebhookURL.value = ''
+  }
 }
 
 function startLogs() {
@@ -298,6 +330,7 @@ async function saveGit() {
     }
     await api.put(`/api/v1/apps/${props.name}/git`, body)
     gitToken.value = ''
+    gitUser.value = ''
     gitPass.value = ''
     await loadGit()
   } finally {
@@ -566,18 +599,19 @@ DATABASE_URL=postgres://..."
           <UIcon name="i-lucide-git-branch" class="text-2xl text-(--ui-primary)" />
           <div>
             <div class="font-semibold">
-              {{ git.url ? 'Connected' : 'Not connected' }}
+              {{ savedGit.url ? 'Connected' : 'Not connected' }}
             </div>
             <div class="text-sm text-(--ui-text-muted)">
-              <code v-if="git.url" class="bg-transparent p-0">{{ git.url }}</code>
+              <code v-if="savedGit.url" class="bg-transparent p-0">{{ savedGit.url }}</code>
               <span v-else>Configure a repository to enable git deploys.</span>
-              <span v-if="git.url"> · branch <code class="bg-transparent p-0">{{ git.branch || 'main' }}</code></span>
+              <span v-if="savedGit.url"> · branch <code class="bg-transparent p-0">{{ savedGit.branch || 'main' }}</code></span>
             </div>
           </div>
         </div>
         <div class="flex flex-wrap gap-1.5">
-          <span v-if="git.has_credential" class="rounded-full border border-(--ui-border) bg-(--ui-bg-muted) px-2.5 py-0.5 text-xs text-(--ui-text-muted)">credential saved</span>
-          <span v-if="git.has_webhook" class="rounded-full border border-green-600/40 bg-green-500/10 px-2.5 py-0.5 text-xs text-green-700">webhook active</span>
+          <span v-if="gitDirty" class="rounded-full border border-amber-600/40 bg-amber-500/10 px-2.5 py-0.5 text-xs text-amber-700">unsaved changes</span>
+          <span v-if="savedGit.has_credential" class="rounded-full border border-(--ui-border) bg-(--ui-bg-muted) px-2.5 py-0.5 text-xs text-(--ui-text-muted)">credential saved</span>
+          <span v-if="savedGit.has_webhook" class="rounded-full border border-green-600/40 bg-green-500/10 px-2.5 py-0.5 text-xs text-green-700">webhook active</span>
           <span v-else class="rounded-full border border-(--ui-border) bg-(--ui-bg-muted) px-2.5 py-0.5 text-xs text-(--ui-text-muted)">webhook disabled</span>
         </div>
       </div>
@@ -620,7 +654,7 @@ DATABASE_URL=postgres://..."
             orientation="horizontal"
           />
           <div v-if="gitAuthMode === 'token'">
-            <UFormField :label="git.has_credential ? 'Replace token (leave blank to keep existing)' : 'Token'">
+            <UFormField :label="savedGit.has_credential ? 'Replace token (leave blank to keep existing)' : 'Token'">
               <UInput v-model="gitToken" type="password" placeholder="ghp_xxx" />
             </UFormField>
           </div>
@@ -628,7 +662,7 @@ DATABASE_URL=postgres://..."
             <UFormField label="Username">
               <UInput v-model="gitUser" placeholder="me / oauth2" />
             </UFormField>
-            <UFormField :label="git.has_credential ? 'Replace password' : 'Password / app password'">
+            <UFormField :label="savedGit.has_credential ? 'Replace password' : 'Password / app password'">
               <UInput v-model="gitPass" type="password" />
             </UFormField>
           </div>
@@ -640,7 +674,7 @@ DATABASE_URL=postgres://..."
               variant="outline"
               icon="i-lucide-rocket"
               :loading="gitDeploying"
-              :disabled="!git.url"
+              :disabled="!savedGit.url"
               @click="deployFromGit"
             >Force build</UButton>
           </div>
@@ -652,13 +686,16 @@ DATABASE_URL=postgres://..."
             <h3 class="m-0 text-base font-semibold">Webhook</h3>
             <span class="text-xs text-(--ui-text-muted)">push → deploy</span>
           </div>
+          <p class="m-0 text-xs text-(--ui-text-muted)">
+            GitHub and GitLab POST here on push. BasePod verifies the HMAC signature against the secret before deploying.
+          </p>
 
-          <div v-if="git.webhook_url" class="flex flex-col gap-3 rounded-xl border border-(--ui-border) bg-(--ui-bg) p-3">
+          <div v-if="savedGit.webhook_url" class="flex flex-col gap-3 rounded-xl border border-(--ui-border) bg-(--ui-bg) p-3">
             <div class="flex flex-col gap-1">
               <span class="text-xs uppercase tracking-wider text-(--ui-text-muted)">Payload URL</span>
               <div class="flex items-center gap-2">
-                <code class="flex-1 break-all rounded-md bg-(--ui-bg-muted) px-2 py-1.5 font-mono text-xs">{{ gitWebhookURL || git.webhook_url }}</code>
-                <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookURL || git.webhook_url)" />
+                <code class="flex-1 break-all rounded-md bg-(--ui-bg-muted) px-2 py-1.5 font-mono text-xs">{{ gitWebhookURL || savedGit.webhook_url }}</code>
+                <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookURL || savedGit.webhook_url)" />
               </div>
             </div>
 
@@ -669,25 +706,25 @@ DATABASE_URL=postgres://..."
                 <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookRevealed)" />
               </div>
             </div>
-            <div v-else-if="git.has_webhook" class="flex flex-col gap-1">
+            <div v-else-if="savedGit.has_webhook" class="flex flex-col gap-1">
               <span class="text-xs uppercase tracking-wider text-(--ui-text-muted)">Secret</span>
               <span class="text-sm text-(--ui-text-muted)">configured — rotate to view a new one</span>
             </div>
           </div>
 
           <UButton variant="outline" icon="i-lucide-key" @click="rotateWebhook">
-            {{ git.has_webhook ? 'Rotate webhook secret' : 'Generate webhook secret' }}
+            {{ savedGit.has_webhook ? 'Rotate webhook secret' : 'Generate webhook secret' }}
           </UButton>
 
           <details class="rounded-xl border border-(--ui-border) bg-(--ui-bg) px-3 py-2 text-sm">
-            <summary class="cursor-pointer font-medium">Connect GitHub</summary>
+            <summary class="cursor-pointer font-medium">Connect GitHub or GitLab</summary>
             <ol class="m-0 mt-3 list-decimal space-y-1 pl-5 text-xs leading-relaxed">
-              <li>In your repo: Settings → Webhooks → Add webhook</li>
+              <li>In GitHub: Settings → Webhooks → Add webhook. In GitLab: Settings → Webhooks → Add new webhook.</li>
               <li>Payload URL: paste the URL above</li>
               <li>Content type: <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5">application/json</code></li>
               <li>Secret: paste the secret above (after rotate)</li>
               <li>Events: <strong>Just the push event</strong></li>
-              <li>Next push to <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5">{{ git.branch || 'main' }}</code> triggers a deploy.</li>
+              <li>Next push to <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5">{{ savedGit.branch || 'main' }}</code> triggers a deploy.</li>
             </ol>
           </details>
         </div>
@@ -756,4 +793,3 @@ DATABASE_URL=postgres://..."
     </section>
   </div>
 </template>
-

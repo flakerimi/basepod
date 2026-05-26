@@ -2,6 +2,10 @@ module github.com/flakerimi/basepod
 
 go 1.26.2
 
+// Toolchain bumped after govulncheck flagged GO-2026-4971 and GO-2026-4918
+// in the std lib for 1.26.2. Honored by go1.21+ via GOTOOLCHAIN=auto.
+toolchain go1.26.3
+
 require (
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/google/uuid v1.6.0

@@ -70,7 +70,7 @@ func (c Config) ensureDirs() error {
 		filepath.Join(c.DataDir, "_basepod"),
 		c.WorkDir(),
 	} {
-		if err := os.MkdirAll(d, 0o755); err != nil {
+		if err := os.MkdirAll(d, 0o700); err != nil {
 			return fmt.Errorf("mkdir %s: %w", d, err)
 		}
 	}

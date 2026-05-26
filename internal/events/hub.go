@@ -43,17 +43,21 @@ func (h *Hub) Publish(topic, evtType string, data any) {
 }
 
 // Subscribe returns a channel that emits events for the given topic (empty = all).
-// The caller must call cancel() when done.
+// The caller must call cancel() when done. cancel() is idempotent — safe to
+// call from both the request handler and the ctx-watching goroutine.
 func (h *Hub) Subscribe(ctx context.Context, topic string) (<-chan Event, func()) {
 	s := &subscriber{topic: topic, ch: make(chan Event, 64)}
 	h.mu.Lock()
 	h.subs[s] = struct{}{}
 	h.mu.Unlock()
+	var once sync.Once
 	cancel := func() {
-		h.mu.Lock()
-		delete(h.subs, s)
-		h.mu.Unlock()
-		close(s.ch)
+		once.Do(func() {
+			h.mu.Lock()
+			delete(h.subs, s)
+			h.mu.Unlock()
+			close(s.ch)
+		})
 	}
 	go func() {
 		<-ctx.Done()

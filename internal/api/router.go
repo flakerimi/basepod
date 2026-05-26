@@ -28,6 +28,7 @@ type Deps struct {
 	Apps         *apps.Service
 	Builder      *builder.Builder
 	Orchestrator *deploy.Orchestrator
+	Locks        *deploy.AppLocks
 	Podman       *podman.Client
 	Caddy        *caddy.Client
 	Events       *events.Hub
@@ -40,14 +41,15 @@ func NewRouter(d Deps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
+	r.Use(bodyLimit)
 
 	r.Get("/api/v1/health", healthHandler(d))
 	r.Get("/api/v1/caddy/check", caddyCheckHandler(d))
 
 	r.Route("/api/v1/auth", func(r chi.Router) {
 		r.Get("/status", authStatusHandler(d))
-		r.Post("/setup", setupHandler(d))
-		r.Post("/login", loginHandler(d))
+		r.With(loginRateLimit).Post("/setup", setupHandler(d))
+		r.With(loginRateLimit).Post("/login", loginHandler(d))
 		r.With(d.Auth.Middleware).Post("/logout", logoutHandler(d))
 		r.With(d.Auth.Middleware).Get("/me", meHandler(d))
 		r.With(d.Auth.Middleware).Get("/tokens", listTokensHandler(d))

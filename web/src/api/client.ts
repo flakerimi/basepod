@@ -12,7 +12,10 @@ async function request<T = unknown>(
   const opts: RequestInit = {
     method,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'BasePod',
+    },
   }
   if (body !== undefined) {
     opts.body = JSON.stringify(body)

@@ -122,7 +122,16 @@ func Render(ctx context.Context, in RenderInput) ([]byte, error) {
 
 	cfg := map[string]any{
 		"admin": map[string]any{
-			"listen": "0.0.0.0:2019",
+			"listen":         "0.0.0.0:2019",
+			"enforce_origin": true,
+			"origins": []string{
+				"127.0.0.1",
+				"host.containers.internal",
+				"127.0.0.1:2019",
+				"host.containers.internal:2019",
+				"localhost",
+				"localhost:2019",
+			},
 		},
 		"apps": map[string]any{
 			"http": map[string]any{
