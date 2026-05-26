@@ -15,6 +15,7 @@ VERSION="${BASEPOD_VERSION:-}"
 PREFIX="${BASEPOD_PREFIX:-/usr/local/bin}"
 DATA_DIR="${BASEPOD_DATA_DIR:-${HOME}/BasePodData}"
 INSTALL_DEPS="${BASEPOD_INSTALL_DEPS:-}"
+HTTP_ADDR="${BASEPOD_HTTP_ADDR:-}"
 
 red()    { printf "\033[31m%s\033[0m\n" "$*"; }
 green()  { printf "\033[32m%s\033[0m\n" "$*"; }
@@ -88,6 +89,70 @@ ensure_podman() {
   exit 1
 }
 
+port_in_use() {
+  port="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+    return $?
+  fi
+  if command -v nc >/dev/null 2>&1; then
+    nc -z 127.0.0.1 "${port}" >/dev/null 2>&1
+    return $?
+  fi
+  return 1
+}
+
+choose_http_port() {
+  for port in 8080 8081 8082 8083 8084 8085 8086 8087 8088 8089 8090; do
+    if ! port_in_use "${port}"; then
+      printf "%s\n" "${port}"
+      return 0
+    fi
+  done
+  red "could not find an available BasePod HTTP port in 8080-8090"
+  echo "Set BASEPOD_HTTP_ADDR=:PORT and rerun the installer."
+  exit 1
+}
+
+http_addr_port() {
+  addr="$1"
+  case "$addr" in
+    :*) printf "%s\n" "${addr#:}" ;;
+    *:*) printf "%s\n" "${addr##*:}" ;;
+    *) printf "%s\n" "$addr" ;;
+  esac
+}
+
+detect_browser_host() {
+  if [ -n "${BASEPOD_BROWSER_HOST:-}" ]; then
+    printf "%s\n" "${BASEPOD_BROWSER_HOST}"
+    return 0
+  fi
+  if [ -n "${SSH_CONNECTION:-}" ]; then
+    # SSH_CONNECTION is: client_ip client_port server_ip server_port.
+    set -- ${SSH_CONNECTION}
+    if [ "$#" -ge 3 ] && [ -n "$3" ]; then
+      printf "%s\n" "$3"
+      return 0
+    fi
+  fi
+  for iface in en0 en1; do
+    if command -v ipconfig >/dev/null 2>&1; then
+      ip="$(ipconfig getifaddr "$iface" 2>/dev/null || true)"
+      if [ -n "$ip" ]; then
+        printf "%s\n" "$ip"
+        return 0
+      fi
+    fi
+  done
+  host="$(hostname 2>/dev/null || true)"
+  if [ -n "$host" ]; then
+    printf "%s\n" "$host"
+    return 0
+  fi
+  printf "%s\n" "127.0.0.1"
+}
+
 if [ "$(uname)" != "Darwin" ]; then
   red "BasePod only supports macOS in v1."
   exit 1
@@ -100,6 +165,14 @@ fi
 require curl
 require tar
 ensure_podman
+
+if [ -z "${HTTP_ADDR}" ]; then
+  HTTP_ADDR=":$(choose_http_port)"
+fi
+HTTP_PORT="$(http_addr_port "${HTTP_ADDR}")"
+BROWSER_HOST="$(detect_browser_host)"
+BROWSER_URL="http://${BROWSER_HOST}:${HTTP_PORT}"
+LOCAL_URL="http://localhost:${HTTP_PORT}"
 
 if [ -z "${VERSION}" ]; then
   VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
@@ -148,6 +221,7 @@ cat > "${PLIST_PATH}" <<PLIST
   <key>EnvironmentVariables</key>
   <dict>
     <key>BASEPOD_DATA_DIR</key><string>${DATA_DIR}</string>
+    <key>BASEPOD_HTTP_ADDR</key><string>${HTTP_ADDR}</string>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>
@@ -170,6 +244,7 @@ echo
 echo "Service:"
 echo "  launchd: loaded"
 echo "  status:  starting"
+echo "  listen:  ${HTTP_ADDR}"
 echo "  plist:   ${PLIST_PATH}"
 echo "  logs:    tail -f ${LOG_DIR}/server.out.log ${LOG_DIR}/server.err.log"
 echo
@@ -180,9 +255,16 @@ echo
 echo "Data:"
 echo "  ${DATA_DIR}"
 echo
-echo "Open:"
-echo "  http://localhost:8080"
+echo "Open from your browser:"
+echo "  ${BROWSER_URL}"
+echo
+echo "On the BasePod Mac itself:"
+echo "  ${LOCAL_URL}"
 echo
 echo "First run:"
 echo "  1. Create your admin user"
 echo "  2. Optional: configure a root domain for app subdomains"
+echo
+echo "Overrides:"
+echo "  BASEPOD_HTTP_ADDR=:9090          choose the server listen port"
+echo "  BASEPOD_BROWSER_HOST=example.com choose the host printed above"

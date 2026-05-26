@@ -24,8 +24,15 @@ This:
 
 1. Prompts to install Podman through Homebrew when Podman is missing
 2. Installs `basepod-server` and `basepod` into `/usr/local/bin/`
-3. Writes a launchd plist at `~/Library/LaunchAgents/dev.basepod.server.plist`
-4. Loads the agent — the server stays running across reboots
+3. Chooses the first free control-plane port in `8080-8090`
+4. Writes a launchd plist at `~/Library/LaunchAgents/dev.basepod.server.plist`
+5. Loads the agent — the server stays running across reboots
+
+To choose the port yourself:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/flakerimi/basepod/main/scripts/install.sh | BASEPOD_HTTP_ADDR=:9090 sh
+```
 
 To install only the CLI for managing an existing BasePod server:
 
@@ -65,8 +72,20 @@ BASEPOD_ADMIN_PASSWORD=secret /usr/local/bin/basepod-server &
 
 ## Open the dashboard
 
-Visit <http://localhost:8080>. On first run, create the admin user in the
-browser.
+Use the URL printed by the installer. When installing over SSH, the installer
+prints a URL using the server-side SSH IP when it can detect one, for example:
+
+```text
+http://192.168.1.20:8081
+```
+
+If detection is wrong, rerun with:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/flakerimi/basepod/main/scripts/install.sh | BASEPOD_BROWSER_HOST=mac.example.com sh
+```
+
+On first run, create the admin user in the browser.
 
 ## Point a domain
 

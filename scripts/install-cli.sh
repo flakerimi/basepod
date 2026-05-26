@@ -68,7 +68,8 @@ echo "Binary:"
 echo "  cli: ${PREFIX}/basepod"
 echo
 echo "Next:"
-echo "  basepod login --server http://localhost:8080"
+echo "  basepod login --server http://<server-ip-or-domain>:<port>"
 echo
-echo "For a remote server:"
+echo "Examples:"
+echo "  basepod login --server http://192.168.1.20:8081"
 echo "  basepod login --server https://bp.example.com"

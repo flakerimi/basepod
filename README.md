@@ -64,8 +64,12 @@ make build && make web
 ./bin/basepod-server
 ```
 
-Then open <http://localhost:8080>. On first run, create the admin user in the
-browser.
+The installer prints the dashboard URL when it finishes. If you install over
+SSH, use that printed `http://<server-ip>:<port>` URL from your browser. The
+installer chooses the first free port in `8080-8090`; override it with
+`BASEPOD_HTTP_ADDR=:9090` if you want a specific port.
+
+On first run, create the admin user in the browser.
 
 The installer places two binaries in `/usr/local/bin`:
 
@@ -80,7 +84,7 @@ install Podman, start the server, or register launchd.
 After creating the admin user in the browser, log in from the terminal:
 
 ```sh
-basepod login --server http://localhost:8080
+basepod login --server http://<server-ip-or-domain>:<port>
 ```
 
 This stores the server URL and an API token in `~/.basepod/config.yaml`.
