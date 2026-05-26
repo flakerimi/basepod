@@ -4,67 +4,99 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"time"
+	"os"
+	"path/filepath"
+
+	"github.com/flakerimi/basepod/internal/podman"
 )
 
+// AdminSocketPathInContainer is the Caddy admin Unix socket path inside the
+// basepod-caddy container. It lives on a tmpfs/volume that is NOT shared with
+// any other container. The socket is the ONLY way to talk to Caddy admin.
+const AdminSocketPathInContainer = "unix//var/run/caddy/admin.sock"
+
+// AdminSocketArg is the form expected by `caddy reload --address …`.
+const AdminSocketArg = "unix//var/run/caddy/admin.sock"
+
+// ConfigFileInContainer is where the rendered JSON config lives inside the
+// Caddy container — bind-mounted from the host so basepod-server can write it
+// without going through the admin API.
+const ConfigFileInContainer = "/etc/caddy/current.json"
+
+// Client controls Caddy via the local `podman` CLI's exec interface, against
+// the basepod-caddy container. Construction needs:
+//   - pc:           podman REST client (for diagnostics)
+//   - containerName: usually "basepod-caddy"
+//   - hostConfigDir: host directory bind-mounted into the container at /etc/caddy
 type Client struct {
-	baseURL string
-	httpc   *http.Client
+	pc            *podman.Client
+	containerName string
+	hostConfigDir string
 }
 
-func New(adminURL string) *Client {
+func New(pc *podman.Client, containerName, hostConfigDir string) *Client {
 	return &Client{
-		baseURL: adminURL,
-		httpc:   &http.Client{Timeout: 30 * time.Second},
+		pc:            pc,
+		containerName: containerName,
+		hostConfigDir: hostConfigDir,
 	}
 }
 
-// Load posts a full Caddy JSON config to /load.
+// configPath is the host-side path to current.json.
+func (c *Client) configPath() string {
+	return filepath.Join(c.hostConfigDir, "current.json")
+}
+
+// Load writes the JSON config to the host-mounted file, then asks Caddy to
+// reload via `caddy reload --config … --address unix//…`. Atomic on disk —
+// we write to a temp file and rename.
 func (c *Client) Load(ctx context.Context, cfg []byte) error {
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/load", bytes.NewReader(cfg))
-	if err != nil {
-		return err
+	if c == nil {
+		return errors.New("caddy: client is nil")
 	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpc.Do(req)
-	if err != nil {
-		return fmt.Errorf("caddy load: %w", err)
+	// Validate JSON before writing.
+	var probe any
+	if err := json.Unmarshal(cfg, &probe); err != nil {
+		return fmt.Errorf("caddy: invalid config JSON: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("caddy load %d: %s", resp.StatusCode, body)
+	if err := os.MkdirAll(c.hostConfigDir, 0o700); err != nil {
+		return fmt.Errorf("caddy: mkdir config dir: %w", err)
+	}
+	tmp := c.configPath() + ".tmp"
+	if err := os.WriteFile(tmp, cfg, 0o600); err != nil {
+		return fmt.Errorf("caddy: write tmp: %w", err)
+	}
+	if err := os.Rename(tmp, c.configPath()); err != nil {
+		return fmt.Errorf("caddy: rename: %w", err)
+	}
+	out, err := podman.Exec(ctx, c.containerName, []string{
+		"caddy", "reload",
+		"--config", ConfigFileInContainer,
+		"--address", AdminSocketArg,
+	})
+	if err != nil {
+		return fmt.Errorf("caddy reload (exec): %w: %s", err, out)
 	}
 	return nil
 }
 
-// Get returns the current Caddy config as raw JSON.
+// Get returns the most recent rendered config written by Load.
 func (c *Client) Get(ctx context.Context) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/config/", nil)
-	if err != nil {
-		return nil, err
+	if c == nil {
+		return nil, errors.New("caddy: client is nil")
 	}
-	resp, err := c.httpc.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("caddy get: %w", err)
+	b, err := os.ReadFile(c.configPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("caddy get %d: %s", resp.StatusCode, body)
-	}
-	return io.ReadAll(resp.Body)
+	return b, err
 }
 
-// ApplyAtomic loads cfg and, on failure, restores the prior config.
+// ApplyAtomic loads cfg; on failure, restores the prior config from disk.
 func (c *Client) ApplyAtomic(ctx context.Context, cfg []byte) error {
-	prior, err := c.Get(ctx)
-	if err != nil {
-		return fmt.Errorf("snapshot prior caddy config: %w", err)
-	}
+	prior, _ := c.Get(ctx)
 	if err := c.Load(ctx, cfg); err != nil {
 		if prior != nil && !bytes.Equal(prior, []byte("null")) {
 			_ = c.Load(ctx, prior)
@@ -74,19 +106,13 @@ func (c *Client) ApplyAtomic(ctx context.Context, cfg []byte) error {
 	return nil
 }
 
-// Ping returns nil if Caddy admin endpoint is reachable.
+// Ping checks the container is up by running `caddy version` inside it.
 func (c *Client) Ping(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/config/", nil)
-	if err != nil {
-		return err
+	if c == nil {
+		return errors.New("caddy: client is nil")
 	}
-	resp, err := c.httpc.Do(req)
-	if err != nil {
+	if _, err := podman.Exec(ctx, c.containerName, []string{"caddy", "version"}); err != nil {
 		return err
-	}
-	resp.Body.Close()
-	if resp.StatusCode >= 500 {
-		return fmt.Errorf("caddy admin status %d", resp.StatusCode)
 	}
 	return nil
 }

@@ -2,66 +2,55 @@ package caddy
 
 import (
 	"context"
-	"io"
-	"net/http"
-	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-func TestLoadAndGet(t *testing.T) {
-	var lastLoad []byte
-	mux := http.NewServeMux()
-	mux.HandleFunc("/load", func(w http.ResponseWriter, r *http.Request) {
-		lastLoad, _ = io.ReadAll(r.Body)
-		w.WriteHeader(200)
-	})
-	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(lastLoad)
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	c := New(srv.URL)
+// TestLoadWritesFile verifies that Load writes the config JSON to disk. The
+// `podman exec caddy reload` will fail in a unit test (no podman/caddy), so
+// we only check the file-write part.
+func TestLoadWritesFile(t *testing.T) {
+	dir := t.TempDir()
+	c := New(nil, "basepod-caddy-test", dir)
 	cfg := []byte(`{"apps":{"http":{}}}`)
-	if err := c.Load(context.Background(), cfg); err != nil {
-		t.Fatal(err)
-	}
-	got, err := c.Get(context.Background())
+	_ = c.Load(context.Background(), cfg) // exec will fail; ignore
+	b, err := os.ReadFile(filepath.Join(dir, "current.json"))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("config file not written: %v", err)
 	}
-	if string(got) != string(cfg) {
-		t.Fatalf("get returned %s", got)
+	if string(b) != string(cfg) {
+		t.Fatalf("file contents: %s", b)
 	}
 }
 
-func TestApplyAtomicRevertsOnFailure(t *testing.T) {
-	prior := []byte(`{"v":"prior"}`)
-	calls := 0
-	mux := http.NewServeMux()
-	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write(prior)
-	})
-	mux.HandleFunc("/load", func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		if calls == 1 {
-			http.Error(w, "boom", 500)
-			return
-		}
-		// second call = revert; record success
-		prior, _ = io.ReadAll(r.Body)
-		w.WriteHeader(200)
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	c := New(srv.URL)
-	err := c.ApplyAtomic(context.Background(), []byte(`{"new":true}`))
-	if err == nil {
-		t.Fatal("expected error")
+func TestLoadRejectsInvalidJSON(t *testing.T) {
+	c := New(nil, "x", t.TempDir())
+	if err := c.Load(context.Background(), []byte("{not json")); err == nil {
+		t.Fatal("expected error on invalid JSON")
 	}
-	if calls < 2 {
-		t.Fatalf("expected revert call, got %d total", calls)
+}
+
+func TestGetReturnsLastWritten(t *testing.T) {
+	dir := t.TempDir()
+	c := New(nil, "x", dir)
+	_ = os.WriteFile(filepath.Join(dir, "current.json"), []byte(`{"v":1}`), 0o600)
+	b, err := c.Get(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != `{"v":1}` {
+		t.Fatalf("got %s", b)
+	}
+}
+
+func TestGetMissingReturnsNil(t *testing.T) {
+	c := New(nil, "x", t.TempDir())
+	b, err := c.Get(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b != nil {
+		t.Fatalf("expected nil, got %s", b)
 	}
 }

@@ -16,3 +16,12 @@ func runPodman(ctx context.Context, args ...string) error {
 	}
 	return nil
 }
+
+// Exec runs a command inside a running container and returns combined output.
+// This is the control channel for Caddy admin (which lives on a Unix socket
+// only reachable from inside the Caddy container's mount namespace).
+func Exec(ctx context.Context, container string, argv []string) ([]byte, error) {
+	full := append([]string{"exec", container}, argv...)
+	cmd := exec.CommandContext(ctx, "podman", full...)
+	return cmd.CombinedOutput()
+}

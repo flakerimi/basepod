@@ -121,17 +121,13 @@ func Render(ctx context.Context, in RenderInput) ([]byte, error) {
 	}
 
 	cfg := map[string]any{
+		// Admin lives on a Unix socket inside the Caddy container — there is
+		// no TCP listener for it, and the socket file is not on any shared
+		// network. The only way in is `podman exec` (or being root inside
+		// the Caddy container). Apps on the same Podman network cannot reach
+		// a Unix socket inside a sibling container's filesystem.
 		"admin": map[string]any{
-			"listen":         "0.0.0.0:2019",
-			"enforce_origin": true,
-			"origins": []string{
-				"127.0.0.1",
-				"host.containers.internal",
-				"127.0.0.1:2019",
-				"host.containers.internal:2019",
-				"localhost",
-				"localhost:2019",
-			},
+			"listen": AdminSocketPathInContainer,
 		},
 		"apps": map[string]any{
 			"http": map[string]any{

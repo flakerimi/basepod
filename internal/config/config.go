@@ -12,9 +12,11 @@ type Config struct {
 	DataDir      string `yaml:"data_dir"`
 	HTTPAddr     string `yaml:"http_addr"`
 	PodmanSocket string `yaml:"podman_socket"`
-	CaddyAdmin   string `yaml:"caddy_admin"`
-	JWTSecret    string `yaml:"jwt_secret"`
-	LogLevel     string `yaml:"log_level"`
+	// CaddyAdmin is retained only to load legacy config files. Caddy admin
+	// now lives on a Unix socket inside the container; this field is unused.
+	CaddyAdmin string `yaml:"caddy_admin,omitempty"`
+	JWTSecret  string `yaml:"jwt_secret"`
+	LogLevel   string `yaml:"log_level"`
 }
 
 func Default() Config {
@@ -23,7 +25,6 @@ func Default() Config {
 		DataDir:      filepath.Join(home, "BasePodData"),
 		HTTPAddr:     ":8080",
 		PodmanSocket: "",
-		CaddyAdmin:   "http://127.0.0.1:2019",
 		LogLevel:     "info",
 	}
 }
