@@ -1,8 +1,8 @@
 # binaries
 /bin/
 /dist/
-basepod-server
-basepod
+/basepod-server
+/basepod
 
 # data
 *.db
