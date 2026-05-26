@@ -429,9 +429,9 @@ function copy(text: string) {
               <h3 class="m-0 text-base font-semibold">Ports</h3>
               <span class="text-xs text-(--ui-text-muted)">applied on redeploy</span>
             </div>
-            <ul v-if="app.ports.length" class="m-0 flex flex-wrap gap-1.5 p-0">
+            <ul v-if="app.ports?.length" class="m-0 flex flex-wrap gap-1.5 p-0">
               <li
-                v-for="p in app.ports"
+                v-for="p in (app.ports ?? [])"
                 :key="p"
                 class="inline-flex items-center gap-1.5 rounded-lg bg-(--ui-bg-muted) px-2.5 py-1.5 font-mono text-sm"
               >
@@ -456,9 +456,9 @@ function copy(text: string) {
               <h3 class="m-0 text-base font-semibold">Volumes</h3>
               <span class="text-xs text-(--ui-text-muted)"><code class="bg-transparent p-0">~/</code> expands on save</span>
             </div>
-            <ul v-if="app.volumes.length" class="m-0 flex flex-col gap-1.5 p-0">
+            <ul v-if="app.volumes?.length" class="m-0 flex flex-col gap-1.5 p-0">
               <li
-                v-for="v in app.volumes"
+                v-for="v in (app.volumes ?? [])"
                 :key="v.container"
                 class="flex items-center gap-3 rounded-lg bg-(--ui-bg-muted) px-3 py-2 text-sm"
               >
@@ -541,9 +541,9 @@ DATABASE_URL=postgres://..."
     </section>
 
     <section v-else-if="tab === 'domains'" class="flex flex-col gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
-      <ul v-if="app.domains.length" class="m-0 flex flex-col gap-0 p-0">
+      <ul v-if="app.domains?.length" class="m-0 flex flex-col gap-0 p-0">
         <li
-          v-for="d in app.domains"
+          v-for="d in (app.domains ?? [])"
           :key="d.domain"
           class="flex items-center gap-2 border-b border-(--ui-border) py-2 last:border-0"
         >

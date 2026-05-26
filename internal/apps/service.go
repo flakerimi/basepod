@@ -226,6 +226,9 @@ func (s *Service) expand(ctx context.Context, row db.App) (*App, error) {
 		CPUPct:         int(row.CpuPct),
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
+		Ports:          []int{},
+		Volumes:        []Volume{},
+		Domains:        []Domain{},
 	}
 	ports, err := s.q.ListAppPorts(ctx, row.ID)
 	if err != nil {
