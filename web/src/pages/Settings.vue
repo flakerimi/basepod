@@ -36,10 +36,10 @@ async function save() {
 </script>
 
 <template>
-  <div class="page">
-    <h1>Settings</h1>
-    <section class="card">
-      <h2>Domains & TLS</h2>
+  <div>
+    <h1 class="m-0 mb-6 text-2xl font-semibold">Settings</h1>
+    <section class="flex max-w-[540px] flex-col gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-6">
+      <h2 class="mt-0 text-lg font-semibold">Domains &amp; TLS</h2>
       <UFormField label="Root domain" help="Apps get <app>.<root> automatically.">
         <UInput v-model="root" placeholder="example.com" />
       </UFormField>
@@ -55,14 +55,7 @@ async function save() {
       <UFormField label="DNS provider API token">
         <UInput v-model="token" type="password" placeholder="leave empty to keep existing" />
       </UFormField>
-      <UButton @click="save" :loading="saving">Save</UButton>
+      <UButton :loading="saving" @click="save">Save</UButton>
     </section>
   </div>
 </template>
-
-<style scoped>
-.page h1 { margin-top: 0; }
-.card { background: var(--ui-bg-elevated); border: 1px solid var(--ui-border); border-radius: 1rem; padding: 1.5rem; max-width: 540px; }
-.card h2 { margin-top: 0; }
-section { display: flex; flex-direction: column; gap: 0.75rem; }
-</style>

@@ -16,7 +16,10 @@ const columns = [
     accessorKey: 'name',
     header: 'Name',
     cell: ({ row }: { row: { original: App } }) =>
-      h(RouterLink, { to: `/apps/${row.original.name}`, class: 'app-link' }, () => row.original.name),
+      h(RouterLink, {
+        to: `/apps/${row.original.name}`,
+        class: 'font-medium text-(--ui-primary) no-underline hover:underline',
+      }, () => row.original.name),
   },
   { accessorKey: 'image_repo', header: 'Image' },
   { accessorKey: 'current_version', header: 'Version' },
@@ -25,14 +28,10 @@ const columns = [
     id: 'actions',
     header: '',
     cell: ({ row }: { row: { original: App } }) =>
-      h(
-        'button',
-        {
-          class: 'view-btn',
-          onClick: () => router.push(`/apps/${row.original.name}`),
-        },
-        'View →',
-      ),
+      h('button', {
+        class: 'cursor-pointer border-0 bg-transparent px-2 py-1 text-sm text-(--ui-text-muted) hover:text-(--ui-primary)',
+        onClick: () => router.push(`/apps/${row.original.name}`),
+      }, 'View →'),
   },
 ]
 
@@ -47,13 +46,16 @@ async function create() {
 </script>
 
 <template>
-  <div class="page">
-    <header class="head">
-      <h1>Apps</h1>
+  <div>
+    <header class="mb-6 flex items-center justify-between">
+      <h1 class="m-0 text-2xl font-semibold">Apps</h1>
       <UButton icon="i-lucide-plus" @click="showCreate = true">New App</UButton>
     </header>
 
-    <div v-if="apps.items.length === 0" class="empty">
+    <div
+      v-if="apps.items.length === 0"
+      class="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-(--ui-border) bg-(--ui-bg-elevated) p-12 text-center"
+    >
       <p>No apps yet.</p>
       <UButton variant="outline" icon="i-lucide-plus" @click="showCreate = true">Create your first app</UButton>
     </div>
@@ -71,36 +73,8 @@ async function create() {
       </template>
       <template #footer>
         <UButton color="neutral" variant="ghost" @click="showCreate = false">Cancel</UButton>
-        <UButton @click="create" :disabled="!newName">Create</UButton>
+        <UButton :disabled="!newName" @click="create">Create</UButton>
       </template>
     </UModal>
   </div>
 </template>
-
-<style scoped>
-.head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
-.head h1 { margin: 0; }
-.empty {
-  background: var(--ui-bg-elevated);
-  border: 1px dashed var(--ui-border);
-  border-radius: 1rem;
-  padding: 3rem;
-  text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 1rem;
-}
-:deep(.app-link) {
-  color: var(--color-primary-500);
-  text-decoration: none;
-  font-weight: 500;
-}
-:deep(.app-link:hover) { text-decoration: underline; }
-:deep(.view-btn) {
-  background: none;
-  border: 0;
-  color: var(--ui-text-muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0.25rem 0.5rem;
-}
-:deep(.view-btn:hover) { color: var(--color-primary-500); }
-</style>

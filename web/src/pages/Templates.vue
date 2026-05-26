@@ -60,14 +60,24 @@ async function install() {
 </script>
 
 <template>
-  <div class="page">
-    <h1>One-click apps</h1>
-    <p class="muted">Spin up databases, queues, and other services with a single click.</p>
+  <div>
+    <h1 class="m-0 mb-1 text-2xl font-semibold">One-click apps</h1>
+    <p class="mb-6 mt-0 text-(--ui-text-muted)">Spin up databases, queues, and other services with a single click.</p>
+
     <div v-if="loading">Loading…</div>
-    <div class="grid" v-else>
-      <div v-for="t in templates" :key="t.id" class="card" @click="start(t)">
-        <div class="title">{{ t.name }}<span v-if="t.version" class="ver">{{ t.version }}</span></div>
-        <p class="desc">{{ t.description }}</p>
+
+    <div v-else class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));">
+      <div
+        v-for="t in templates"
+        :key="t.id"
+        class="flex cursor-pointer flex-col gap-2 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5 hover:border-(--ui-primary)"
+        @click="start(t)"
+      >
+        <div class="flex items-center gap-2 font-semibold">
+          {{ t.name }}
+          <span v-if="t.version" class="text-sm font-normal text-(--ui-text-muted)">{{ t.version }}</span>
+        </div>
+        <p class="flex-1 text-sm text-(--ui-text-muted)">{{ t.description }}</p>
         <UButton size="sm" variant="soft">Install</UButton>
       </div>
     </div>
@@ -88,21 +98,3 @@ async function install() {
     </UModal>
   </div>
 </template>
-
-<style scoped>
-.page h1 { margin-top: 0; }
-.muted { color: var(--ui-text-muted); margin-bottom: 1.5rem; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
-.card {
-  padding: 1.25rem;
-  background: var(--ui-bg-elevated);
-  border: 1px solid var(--ui-border);
-  border-radius: 1rem;
-  cursor: pointer;
-  display: flex; flex-direction: column; gap: 0.5rem;
-}
-.card:hover { border-color: var(--color-primary-500); }
-.title { font-weight: 600; display: flex; gap: 0.5rem; align-items: center; }
-.ver { color: var(--ui-text-muted); font-size: 0.85rem; font-weight: 400; }
-.desc { color: var(--ui-text-muted); font-size: 0.9rem; flex: 1; }
-</style>

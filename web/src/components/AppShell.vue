@@ -25,58 +25,22 @@ async function logout() {
 </script>
 
 <template>
-  <div class="shell">
-    <aside class="side">
-      <div class="brand"><Logo :height="26" /></div>
-      <UNavigationMenu
-        orientation="vertical"
-        :items="items"
-        class="nav"
-      />
-      <div class="spacer" />
-      <div class="user">
+  <div class="grid min-h-screen grid-cols-[240px_1fr] bg-(--ui-bg)">
+    <aside class="flex flex-col gap-3 overflow-hidden border-r border-(--ui-border) bg-(--ui-bg-muted) px-3 py-4">
+      <div class="px-2 pb-4 pt-2"><Logo :height="26" /></div>
+      <UNavigationMenu orientation="vertical" :items="items" class="w-full" />
+      <div class="flex-1" />
+      <div class="flex items-center gap-2 border-t border-(--ui-border) px-2 pb-1 pt-3">
         <UAvatar :alt="initials" size="sm" />
-        <div class="user-text">
-          <div class="user-name">{{ auth.user?.username }}</div>
-          <button class="logout" @click="logout">log out</button>
+        <div class="flex flex-col leading-tight">
+          <div class="text-sm text-(--ui-text-highlighted)">{{ auth.user?.username }}</div>
+          <button
+            class="cursor-pointer border-0 bg-transparent p-0 text-left text-xs text-(--ui-text-muted) hover:text-(--ui-primary)"
+            @click="logout"
+          >log out</button>
         </div>
       </div>
     </aside>
-    <main class="main">
-      <slot />
-    </main>
+    <main class="overflow-y-auto px-10 py-8"><slot /></main>
   </div>
 </template>
-
-<style scoped>
-.shell {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  min-height: 100vh;
-  background: var(--ui-bg);
-}
-.side {
-  display: flex;
-  flex-direction: column;
-  background: var(--ui-bg-muted);
-  border-right: 1px solid var(--ui-border);
-  padding: 1rem 0.75rem;
-  gap: 0.75rem;
-  overflow: hidden;
-}
-.brand { padding: 0.5rem 0.5rem 1rem; }
-.nav { width: 100%; }
-.spacer { flex: 1; }
-.user {
-  display: flex; gap: 0.6rem; align-items: center;
-  padding: 0.75rem 0.5rem 0.25rem; border-top: 1px solid var(--ui-border);
-}
-.user-text { display: flex; flex-direction: column; line-height: 1.2; }
-.user-name { font-size: 0.9rem; color: var(--ui-text-highlighted); }
-.logout {
-  background: none; border: 0; color: var(--ui-text-muted);
-  font-size: 0.75rem; text-align: left; padding: 0; cursor: pointer;
-}
-.logout:hover { color: var(--ui-primary); }
-.main { padding: 2rem 2.5rem; overflow-y: auto; }
-</style>

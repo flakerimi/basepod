@@ -24,11 +24,11 @@ async function submit() {
 </script>
 
 <template>
-  <div class="wrap">
-    <div class="card">
-      <div class="logo"><Logo :height="40" /></div>
-      <p class="sub">Sign in to your BasePod server</p>
-      <form @submit.prevent="submit" class="form">
+  <div class="grid min-h-screen place-items-center bg-(--ui-bg)">
+    <div class="w-[360px] rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-8">
+      <div class="flex justify-center"><Logo :height="40" /></div>
+      <p class="mb-6 mt-2 text-center text-(--ui-text-muted)">Sign in to your BasePod server</p>
+      <form class="flex flex-col gap-3.5" @submit.prevent="submit">
         <UFormField label="Username">
           <UInput v-model="username" autocomplete="username" />
         </UFormField>
@@ -41,11 +41,3 @@ async function submit() {
     </div>
   </div>
 </template>
-
-<style scoped>
-.wrap { min-height: 100vh; display: grid; place-items: center; background: var(--ui-bg); }
-.card { width: 360px; padding: 2rem; border-radius: 1rem; background: var(--ui-bg-elevated); border: 1px solid var(--ui-border); }
-.logo { display: flex; justify-content: center; }
-.sub { text-align: center; color: var(--ui-text-muted); margin: 0.5rem 0 1.5rem; }
-.form { display: flex; flex-direction: column; gap: 0.85rem; }
-</style>

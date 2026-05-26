@@ -327,13 +327,13 @@ function copy(text: string) {
 </script>
 
 <template>
-  <div v-if="app" class="page">
-    <header class="head">
+  <div v-if="app" class="flex flex-col gap-6">
+    <header class="flex items-start justify-between">
       <div>
-        <h1>{{ app.name }}</h1>
-        <p class="muted">{{ app.image_repo || '—' }} · {{ app.current_version || 'not deployed' }}</p>
+        <h1 class="m-0 text-2xl font-semibold">{{ app.name }}</h1>
+        <p class="m-0 text-(--ui-text-muted)">{{ app.image_repo || '—' }} · {{ app.current_version || 'not deployed' }}</p>
       </div>
-      <div class="actions">
+      <div>
         <UButton color="neutral" variant="outline" icon="i-lucide-rotate-cw" @click="restart">Restart</UButton>
       </div>
     </header>
@@ -485,9 +485,9 @@ function copy(text: string) {
       </div>
     </section>
 
-    <section v-else-if="tab === 'env'" class="section env-tab">
-      <div class="env-head">
-        <h3 class="section-title">Environment variables</h3>
+    <section v-else-if="tab === 'env'" class="flex flex-col gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
+      <div class="flex items-center justify-between">
+        <h3 class="m-0 text-base font-semibold">Environment variables</h3>
         <URadioGroup
           v-model="envMode"
           :items="[{ label: 'Rows', value: 'rows' }, { label: 'Bulk (.env)', value: 'bulk' }]"
@@ -498,12 +498,11 @@ function copy(text: string) {
       </div>
 
       <template v-if="envMode === 'rows'">
-        <div v-for="(value, key) in env" :key="String(key)" class="env-row">
-          <UInput :model-value="String(key)" disabled class="k" />
+        <div v-for="(value, key) in env" :key="String(key)" class="grid grid-cols-[1fr_2fr_auto_auto] items-center gap-2">
+          <UInput :model-value="String(key)" disabled class="font-mono" />
           <UInput
             v-model="env[String(key)]"
             :type="envRevealed[String(key)] || !isSecretKey(String(key)) ? 'text' : 'password'"
-            class="v"
           />
           <UButton
             v-if="isSecretKey(String(key))"
@@ -514,56 +513,63 @@ function copy(text: string) {
           />
           <UButton size="xs" color="error" variant="ghost" icon="i-lucide-x" @click="removeKey(String(key))" />
         </div>
-        <div class="env-row">
-          <UInput placeholder="NEW_KEY" v-model="newKey" class="k" />
-          <UInput placeholder="value" v-model="newVal" class="v" />
+        <div class="grid grid-cols-[1fr_2fr_auto_auto] items-center gap-2">
+          <UInput v-model="newKey" placeholder="NEW_KEY" class="font-mono" />
+          <UInput v-model="newVal" placeholder="value" />
+          <span />
           <UButton size="xs" icon="i-lucide-plus" :disabled="!newKey" @click="addRow" />
         </div>
       </template>
 
-      <template v-else>
-        <UTextarea
-          v-model="envBulk"
-          :rows="14"
-          autoresize
-          placeholder="# Paste like a .env file
+      <UTextarea
+        v-else
+        v-model="envBulk"
+        :rows="14"
+        autoresize
+        :ui="{ base: 'font-mono text-sm' }"
+        placeholder="# Paste like a .env file
 NODE_ENV=production
 DATABASE_URL=postgres://..."
-          class="bulk"
-        />
-      </template>
+      />
 
-      <div class="env-actions">
+      <div class="flex items-center gap-3 border-t border-(--ui-border) pt-3">
         <UCheckbox v-model="envRestartOnSave" label="Restart container after save" />
-        <div class="grow" />
-        <span v-if="envSavedMsg" class="muted small">{{ envSavedMsg }}</span>
+        <div class="flex-1" />
+        <span v-if="envSavedMsg" class="text-xs text-(--ui-text-muted)">{{ envSavedMsg }}</span>
         <UButton :loading="envSaving" @click="saveEnv">Save env</UButton>
       </div>
     </section>
 
-    <section v-else-if="tab === 'domains'" class="section">
-      <ul class="domains">
-        <li v-for="d in app.domains" :key="d.domain">
-          {{ d.domain }}
-          <span class="muted">— {{ d.tls_state }}</span>
+    <section v-else-if="tab === 'domains'" class="flex flex-col gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
+      <ul v-if="app.domains.length" class="m-0 flex flex-col gap-0 p-0">
+        <li
+          v-for="d in app.domains"
+          :key="d.domain"
+          class="flex items-center gap-2 border-b border-(--ui-border) py-2 last:border-0"
+        >
+          <span class="flex-1">{{ d.domain }}</span>
+          <span class="text-sm text-(--ui-text-muted)">{{ d.tls_state }}</span>
           <UButton size="xs" variant="ghost" color="error" @click="removeDomain(d.domain)">Remove</UButton>
         </li>
       </ul>
-      <div class="row">
-        <UInput v-model="newDomain" placeholder="example.com" />
-        <UButton @click="addDomain">Attach</UButton>
+      <p v-else class="m-0 text-sm text-(--ui-text-muted)">No custom domains yet.</p>
+      <div class="flex gap-2">
+        <UInput v-model="newDomain" placeholder="example.com" class="flex-1" />
+        <UButton :disabled="!newDomain" @click="addDomain">Attach</UButton>
       </div>
     </section>
 
-    <section v-else-if="tab === 'git'" class="section git-tab">
-      <h3 class="section-title">Deploy from Git</h3>
-      <p class="muted">
-        Build straight from a GitHub, GitLab, or Bitbucket repository. After save,
-        rotate a webhook secret to enable push-to-deploy.
-      </p>
+    <section v-else-if="tab === 'git'" class="flex flex-col gap-4 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
+      <div>
+        <h3 class="m-0 text-base font-semibold">Deploy from Git</h3>
+        <p class="m-0 mt-1 text-sm text-(--ui-text-muted)">
+          Build straight from a GitHub, GitLab, or Bitbucket repository. After save,
+          rotate a webhook secret to enable push-to-deploy.
+        </p>
+      </div>
 
-      <div class="grid">
-        <UFormField label="Repository URL">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <UFormField label="Repository URL" class="md:col-span-2">
           <UInput v-model="git.url" placeholder="https://github.com/owner/repo" />
         </UFormField>
         <UFormField label="Branch">
@@ -574,26 +580,27 @@ DATABASE_URL=postgres://..."
         </UFormField>
       </div>
 
-      <h4 class="sub">Authentication</h4>
-      <p class="muted small">
-        Public repos: leave blank.
-        Private GitHub: paste a PAT.
-        GitLab/Bitbucket: use username + password (or app password / project token).
-      </p>
-      <URadioGroup
-        v-model="gitAuthMode"
-        :items="[
-          { label: 'GitHub PAT / token', value: 'token' },
-          { label: 'Username + password', value: 'userpass' },
-        ]"
-        orientation="horizontal"
-      />
-      <div v-if="gitAuthMode === 'token'" class="grid">
+      <div>
+        <h4 class="m-0 mb-1 text-sm font-semibold">Authentication</h4>
+        <p class="m-0 mb-2 text-xs text-(--ui-text-muted)">
+          Public repos: leave blank. Private GitHub: paste a PAT. GitLab/Bitbucket: username + password.
+        </p>
+        <URadioGroup
+          v-model="gitAuthMode"
+          :items="[
+            { label: 'GitHub PAT / token', value: 'token' },
+            { label: 'Username + password', value: 'userpass' },
+          ]"
+          orientation="horizontal"
+        />
+      </div>
+
+      <div v-if="gitAuthMode === 'token'">
         <UFormField :label="git.has_credential ? 'Replace token (leave blank to keep existing)' : 'Token'">
           <UInput v-model="gitToken" type="password" placeholder="ghp_xxx" />
         </UFormField>
       </div>
-      <div v-else class="grid">
+      <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2">
         <UFormField label="Username">
           <UInput v-model="gitUser" placeholder="me / oauth2" />
         </UFormField>
@@ -602,8 +609,8 @@ DATABASE_URL=postgres://..."
         </UFormField>
       </div>
 
-      <div class="actions-row">
-        <UButton :loading="gitSaving" @click="saveGit" :disabled="!git.url">Save</UButton>
+      <div class="flex gap-2">
+        <UButton :loading="gitSaving" :disabled="!git.url" @click="saveGit">Save</UButton>
         <UButton
           color="neutral"
           variant="outline"
@@ -611,83 +618,102 @@ DATABASE_URL=postgres://..."
           :loading="gitDeploying"
           :disabled="!git.url"
           @click="deployFromGit"
-        >
-          Force build
-        </UButton>
+        >Force build</UButton>
       </div>
 
-      <hr class="sep" />
+      <hr class="m-0 border-0 border-t border-(--ui-border)" />
 
-      <h4 class="sub">Webhook</h4>
-      <p class="muted small">
-        GitHub / GitLab will POST here on every push. We verify the HMAC signature
-        against the secret below before triggering a deploy.
-      </p>
+      <div>
+        <h4 class="m-0 mb-1 text-sm font-semibold">Webhook</h4>
+        <p class="m-0 text-xs text-(--ui-text-muted)">
+          GitHub / GitLab will POST here on every push. We verify the HMAC signature
+          against the secret below before triggering a deploy.
+        </p>
+      </div>
 
-      <div class="webhook-box" v-if="git.webhook_url">
-        <div class="kv-row">
-          <span class="label">Payload URL</span>
-          <code class="value">{{ gitWebhookURL || git.webhook_url }}</code>
+      <div v-if="git.webhook_url" class="flex flex-col gap-2 rounded-xl border border-(--ui-border) bg-(--ui-bg) p-4">
+        <div class="grid grid-cols-[180px_1fr_auto] items-center gap-3">
+          <span class="text-sm text-(--ui-text-muted)">Payload URL</span>
+          <code class="break-all rounded-md bg-(--ui-bg-muted) px-2 py-1 font-mono text-sm">{{ gitWebhookURL || git.webhook_url }}</code>
           <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookURL || git.webhook_url)" />
         </div>
-        <div class="kv-row" v-if="gitWebhookRevealed">
-          <span class="label">Secret (shown once)</span>
-          <code class="value secret">{{ gitWebhookRevealed }}</code>
+        <div v-if="gitWebhookRevealed" class="grid grid-cols-[180px_1fr_auto] items-center gap-3">
+          <span class="text-sm text-(--ui-text-muted)">Secret (shown once)</span>
+          <code class="break-all rounded-md bg-(--ui-bg-muted) px-2 py-1 font-mono text-sm text-(--ui-primary)">{{ gitWebhookRevealed }}</code>
           <UButton size="xs" variant="ghost" icon="i-lucide-copy" @click="copy(gitWebhookRevealed)" />
         </div>
-        <div class="kv-row" v-else-if="git.has_webhook">
-          <span class="label">Secret</span>
-          <span class="muted">configured — rotate below to view a new one</span>
+        <div v-else-if="git.has_webhook" class="grid grid-cols-[180px_1fr_auto] items-center gap-3">
+          <span class="text-sm text-(--ui-text-muted)">Secret</span>
+          <span class="text-sm text-(--ui-text-muted)">configured — rotate below to view a new one</span>
+          <span />
         </div>
       </div>
 
-      <div class="actions-row">
+      <div>
         <UButton variant="outline" icon="i-lucide-key" @click="rotateWebhook">
           {{ git.has_webhook ? 'Rotate webhook secret' : 'Generate webhook secret' }}
         </UButton>
       </div>
 
-      <details class="instructions">
-        <summary>Connect GitHub</summary>
-        <ol>
+      <details class="rounded-xl border border-(--ui-border) bg-(--ui-bg) px-4 py-3">
+        <summary class="cursor-pointer font-medium">Connect GitHub</summary>
+        <ol class="m-0 mt-3 list-decimal pl-5 leading-relaxed">
           <li>In your repo: Settings → Webhooks → Add webhook</li>
           <li>Payload URL: paste the URL above</li>
-          <li>Content type: <code>application/json</code></li>
+          <li>Content type: <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5 text-xs">application/json</code></li>
           <li>Secret: paste the secret above (shown only after rotate)</li>
           <li>Events: <strong>Just the push event</strong></li>
-          <li>Save. Next push to <code>{{ git.branch || 'main' }}</code> triggers a deploy.</li>
+          <li>Save. Next push to <code class="rounded bg-(--ui-bg-muted) px-1.5 py-0.5 text-xs">{{ git.branch || 'main' }}</code> triggers a deploy.</li>
         </ol>
       </details>
     </section>
 
-    <section v-else-if="tab === 'logs'" class="section">
-      <div class="logs-bar">
+    <section v-else-if="tab === 'logs'" class="flex flex-col gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
+      <div>
         <UButton v-if="!stopLogs" icon="i-lucide-play" @click="startLogs">Stream</UButton>
         <UButton v-else color="neutral" icon="i-lucide-square" @click="stopLogStream">Stop</UButton>
       </div>
-      <pre class="logs">{{ logs.join('\n') || '— start streaming to see container logs —' }}</pre>
+      <pre class="m-0 max-h-[60vh] overflow-auto rounded-lg bg-black p-4 font-mono text-sm text-[#d8e6ed]">{{ logs.join('\n') || '— start streaming to see container logs —' }}</pre>
     </section>
 
-    <section v-else-if="tab === 'versions'" class="section versions-tab">
-      <h3 class="section-title">Deploy history</h3>
-      <p class="muted small">Last 5 versions are kept. Rollback re-deploys the selected image tag.</p>
-      <table v-if="versions.length" class="versions">
+    <section v-else-if="tab === 'versions'" class="flex flex-col gap-3 rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated) p-5">
+      <h3 class="m-0 text-base font-semibold">Deploy history</h3>
+      <p class="m-0 text-xs text-(--ui-text-muted)">Last 5 versions are kept. Rollback re-deploys the selected image tag.</p>
+      <table v-if="versions.length" class="w-full border-collapse">
         <thead>
           <tr>
-            <th>Version</th>
-            <th>Image</th>
-            <th>Status</th>
-            <th>Deployed</th>
-            <th></th>
+            <th class="border-b border-(--ui-border) px-3 py-2.5 text-left text-xs uppercase tracking-wider text-(--ui-text-muted)">Version</th>
+            <th class="border-b border-(--ui-border) px-3 py-2.5 text-left text-xs uppercase tracking-wider text-(--ui-text-muted)">Image</th>
+            <th class="border-b border-(--ui-border) px-3 py-2.5 text-left text-xs uppercase tracking-wider text-(--ui-text-muted)">Status</th>
+            <th class="border-b border-(--ui-border) px-3 py-2.5 text-left text-xs uppercase tracking-wider text-(--ui-text-muted)">Deployed</th>
+            <th class="border-b border-(--ui-border) px-3 py-2.5"></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="v in versions" :key="v.id" :class="{ current: v.version === app.current_version }">
-            <td><code>{{ v.version }}</code><span v-if="v.version === app.current_version" class="badge">current</span></td>
-            <td><code>{{ v.image_tag || '—' }}</code></td>
-            <td><span class="status" :data-status="v.status">{{ v.status }}</span></td>
-            <td>{{ formatTs(v.deployed_at) }}</td>
-            <td>
+          <tr
+            v-for="v in versions"
+            :key="v.id"
+            :class="[
+              v.version === app.current_version ? 'bg-(--ui-primary)/5' : '',
+            ]"
+          >
+            <td class="border-b border-(--ui-border) px-3 py-2.5">
+              <code class="text-sm">{{ v.version }}</code>
+              <span v-if="v.version === app.current_version" class="ml-2 inline-block rounded bg-(--ui-primary) px-1.5 py-0.5 text-[0.65rem] text-white">current</span>
+            </td>
+            <td class="border-b border-(--ui-border) px-3 py-2.5"><code class="text-sm">{{ v.image_tag || '—' }}</code></td>
+            <td class="border-b border-(--ui-border) px-3 py-2.5">
+              <span
+                class="text-sm"
+                :class="{
+                  'text-green-600': v.status === 'succeeded',
+                  'text-red-600': v.status === 'failed',
+                  'text-(--ui-primary)': ['deploying','building','cloning'].includes(v.status),
+                }"
+              >{{ v.status }}</span>
+            </td>
+            <td class="border-b border-(--ui-border) px-3 py-2.5">{{ formatTs(v.deployed_at) }}</td>
+            <td class="border-b border-(--ui-border) px-3 py-2.5">
               <UButton
                 v-if="v.version !== app.current_version && v.status === 'succeeded'"
                 size="xs"
@@ -700,117 +726,8 @@ DATABASE_URL=postgres://..."
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No deploys yet.</p>
+      <p v-else class="m-0 text-sm text-(--ui-text-muted)">No deploys yet.</p>
     </section>
   </div>
 </template>
 
-<style scoped>
-.page { display: flex; flex-direction: column; gap: 1.5rem; }
-.head { display: flex; justify-content: space-between; align-items: start; }
-.head h1 { margin: 0; }
-.muted { color: var(--ui-text-muted); }
-.muted.small { font-size: 0.85rem; margin-top: -0.25rem; }
-.section { background: var(--ui-bg-elevated); border: 1px solid var(--ui-border); border-radius: 1rem; padding: 1.25rem; }
-.section-title { margin: 0 0 0.5rem; font-size: 1.05rem; }
-.kv { display: grid; grid-template-columns: 140px 1fr; gap: 0.6rem 1.2rem; margin: 0; }
-.kv dt { color: var(--ui-text-muted); }
-.row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; }
-.domains { list-style: none; padding: 0; margin: 0 0 1rem; }
-.domains li { display: flex; gap: 0.6rem; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid var(--ui-border); }
-.logs-bar { margin-bottom: 0.75rem; }
-.logs {
-  background: #000;
-  color: #d8e6ed;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  max-height: 60vh;
-  overflow: auto;
-  font-size: 0.85rem;
-  margin: 0;
-}
-
-/* versions tab */
-.versions-tab { display: flex; flex-direction: column; gap: 0.75rem; }
-.versions { width: 100%; border-collapse: collapse; }
-.versions th, .versions td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid var(--ui-border); }
-.versions th { color: var(--ui-text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.versions tr.current { background: color-mix(in oklch, var(--color-primary-500) 6%, transparent); }
-.versions code { font-size: 0.85rem; }
-.versions .badge {
-  display: inline-block;
-  margin-left: 0.5rem;
-  padding: 0.05rem 0.4rem;
-  background: var(--color-primary-500);
-  color: white;
-  border-radius: 0.25rem;
-  font-size: 0.7rem;
-}
-.versions .status { font-size: 0.85rem; }
-.versions .status[data-status="succeeded"] { color: #16a34a; }
-.versions .status[data-status="failed"] { color: #dc2626; }
-.versions .status[data-status="deploying"], .versions .status[data-status="building"], .versions .status[data-status="cloning"] { color: var(--color-primary-600); }
-
-/* env tab */
-.env-tab { display: flex; flex-direction: column; gap: 0.75rem; }
-.env-head { display: flex; align-items: center; justify-content: space-between; }
-.env-row {
-  display: grid;
-  grid-template-columns: 1fr 2fr auto auto;
-  gap: 0.5rem;
-  align-items: center;
-}
-.env-row .k { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
-.bulk :deep(textarea) {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.875rem;
-}
-.env-actions {
-  display: flex; align-items: center; gap: 0.75rem;
-  padding-top: 0.5rem; border-top: 1px solid var(--ui-border);
-}
-.grow { flex: 1; }
-
-/* git tab */
-.git-tab { display: flex; flex-direction: column; gap: 1rem; }
-.git-tab .sub { margin: 0.5rem 0 0; font-size: 0.95rem; }
-.git-tab .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-.git-tab .grid > :first-child:nth-last-child(1) { grid-column: 1 / -1; }
-.actions-row { display: flex; gap: 0.5rem; }
-.sep { border: 0; border-top: 1px solid var(--ui-border); margin: 0.5rem 0; }
-.webhook-box {
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
-  border-radius: 0.75rem;
-  padding: 1rem;
-  display: flex; flex-direction: column; gap: 0.5rem;
-}
-.kv-row {
-  display: grid; grid-template-columns: 180px 1fr auto; gap: 0.75rem; align-items: center;
-}
-.kv-row .label { color: var(--ui-text-muted); font-size: 0.85rem; }
-.kv-row .value {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.85rem;
-  background: var(--ui-bg-muted);
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.4rem;
-  word-break: break-all;
-}
-.kv-row .value.secret { color: var(--color-primary-600); }
-.instructions {
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
-}
-.instructions summary { cursor: pointer; font-weight: 500; }
-.instructions ol { margin: 0.75rem 0 0; padding-left: 1.25rem; line-height: 1.7; }
-.instructions code {
-  background: var(--ui-bg-muted);
-  padding: 0.1rem 0.35rem;
-  border-radius: 0.25rem;
-  font-size: 0.85em;
-}
-</style>
