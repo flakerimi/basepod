@@ -2,6 +2,7 @@
 set -euo pipefail
 
 VERSION="${1:-0.0.0-dev}"
+ARTIFACT_VERSION="${VERSION#v}"
 DIST="${PWD}/dist"
 ROOT="${PWD}"
 
@@ -25,7 +26,7 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
   -o "${DIST}/basepod" ./cmd/basepod
 
 echo "==> packaging"
-TARBALL="${DIST}/basepod-${VERSION}-darwin-arm64.tar.gz"
+TARBALL="${DIST}/basepod-${ARTIFACT_VERSION}-darwin-arm64.tar.gz"
 tar -C "${DIST}" -czf "${TARBALL}" basepod-server basepod
 shasum -a 256 "${TARBALL}" > "${TARBALL}.sha256"
 

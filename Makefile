@@ -11,9 +11,9 @@ GOARCH ?= arm64
 
 all: build
 
-build: server cli ## build both binaries
+build: web server cli ## build both binaries
 
-server: ## build basepod-server
+server: web ## build basepod-server
 	@mkdir -p $(BIN)
 	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(GOFLAGS) -o $(BIN)/basepod-server ./cmd/basepod-server
 
@@ -24,8 +24,9 @@ cli: ## build basepod CLI
 web: ## build the Vue SPA
 	cd web && pnpm install && pnpm build
 
-test: ## run tests
+test: web ## run tests
 	./scripts/test-installers.sh
+	./scripts/test-workflows.sh
 	go test ./... -race -count=1
 
 lint: ## run linters
@@ -46,7 +47,7 @@ run: ## run the server locally
 clean:
 	rm -rf $(BIN) $(DIST)
 
-release: clean web ## build release artifacts
+release: clean ## build release artifacts
 	./scripts/build.sh $(VERSION)
 
 docs: cli ## regenerate the CLI markdown reference
